@@ -104,14 +104,14 @@ function RouteComponent() {
             <TabsList className="bg-background space-x-2 h-fit mb-6">
               <TabsTrigger
                 value="authors"
-                className="h-fit flex-col px-4 py-2 gap-0 items-start border border-foreground whitespace-break-spaces text-left"
+                className="h-fit w-[200px] flex-col px-4 py-2 gap-0 items-start border border-foreground whitespace-break-spaces text-left"
               >
                 <div className="text-2xl font-semibold">254</div>
                 <div>autores encontrados</div>
               </TabsTrigger>
               <TabsTrigger
                 value="papers"
-                className="self-stretch flex-col px-4 py-2 gap-0 items-start border border-foreground whitespace-break-spaces text-left"
+                className="h-fit w-[200px] flex-col px-4 py-2 gap-0 items-start border border-foreground whitespace-break-spaces text-left"
               >
                 <div className="text-2xl font-semibold">1.543</div>
                 <div>artigos encontrados</div>
@@ -120,7 +120,7 @@ function RouteComponent() {
             <TabsContent value="authors" className="w-full">
               <AuthorListing />
             </TabsContent>
-            <TabsContent value="papers">Change your password here.</TabsContent>
+            <TabsContent value="papers">Listagem de artigos</TabsContent>
           </Tabs>
         </div>
       </div>
