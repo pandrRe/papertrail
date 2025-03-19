@@ -19,11 +19,11 @@ export const Route = createFileRoute("/results")({
   },
 });
 
-type AuthorListingProps = {
-  name: string;
-  email: string;
-  avatar: string;
-};
+// type AuthorListingProps = {
+//   name: string;
+//   email: string;
+//   avatar: string;
+// };
 function AuthorListing() {
   return (
     <div className="space-y-6">
