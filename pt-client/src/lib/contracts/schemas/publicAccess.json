@@ -1,0 +1,1 @@
+{"properties":{"available":{"type":"integer","title":"Available"},"notAvailable":{"type":"integer","title":"Notavailable"}},"type":"object","required":["available","notAvailable"],"title":"PublicAccess","x-readme-ref-name":"PublicAccess"}

@@ -6,12 +6,15 @@
     "start": "vite --port 3000",
     "build": "vite build && tsc",
     "serve": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "schema:pull": "bun run scripts/pullOpenApiSpec.ts",
+    "schema:generate": "kubb generate"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",
-    "@radix-ui/react-tabs": "^1.1.3",
+    "@radix-ui/react-tabs": "^1.1.4",
     "@tailwindcss/vite": "^4.0.6",
+    "@tanstack/react-query": "^5.71.10",
     "@tanstack/react-router": "^1.114.3",
     "@tanstack/react-router-devtools": "^1.114.3",
     "@tanstack/router-plugin": "^1.114.3",
@@ -23,11 +26,20 @@
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.0.6",
     "tailwindcss-animate": "^1.0.7",
-    "valibot": "^1.0.0-rc.4"
+    "valibot": "^1.0.0-rc.4",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@kubb/cli": "^3.7.2",
+    "@kubb/core": "^3.7.2",
+    "@kubb/plugin-client": "^3.7.2",
+    "@kubb/plugin-oas": "^3.7.2",
+    "@kubb/plugin-react-query": "^3.7.2",
+    "@kubb/plugin-ts": "^3.7.2",
+    "@kubb/plugin-zod": "^3.7.2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
+    "@types/bun": "^1.2.8",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",

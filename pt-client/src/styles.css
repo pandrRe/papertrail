@@ -28,6 +28,10 @@ code {
     source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 :root {
   --background: oklch(0.984 0.0126 86.83);
   --foreground: oklch(0.2006 0.0235 69.43);
