@@ -43,12 +43,6 @@ def search(
 ) -> EventSourceResponse:
     async def publisher():
         async for result in global_search_stream(query, model):
-            # if result is None:
-            #     yield {
-            #         "event": "finish",
-            #         "data": "",
-            #     }
-            #     return
             yield {
                 "event": "message",
                 "data": result.model_dump_json(by_alias=True),
@@ -58,5 +52,4 @@ def search(
             "data": "",
         }
 
-    # logger.debug("BEING CALLED")
     return EventSourceResponse(publisher())

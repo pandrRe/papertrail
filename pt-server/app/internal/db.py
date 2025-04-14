@@ -13,9 +13,9 @@ import os
 if __name__ == "__main__":
     load_dotenv()
 
-DB_NAME = os.environ.get("DB_NAME")
+DB_PATH = os.environ.get("DB_PATH")
 
-dbUrl = f"sqlite+aiosqlite:///./db/{DB_NAME}.db"
+dbUrl = f"sqlite+aiosqlite:///{DB_PATH}"
 engine = create_async_engine(
     dbUrl,
     # echo=True

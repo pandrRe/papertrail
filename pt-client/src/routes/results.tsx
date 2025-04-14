@@ -1,11 +1,13 @@
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ExtendedAuthorSchema, PublicationSchema } from "@/lib/contracts";
 import { createSearchStream } from "@/lib/searchStream";
+import { cn } from "@/lib/utils";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { SquareArrowOutUpRightIcon, UserPlusIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as v from "valibot";
 
 const resultsSearchSchema = v.object({
@@ -22,10 +24,172 @@ export const Route = createFileRoute("/results")({
   },
 });
 
+export function AuthorListingSkeletonLoader() {
+  return (
+    <div className="space-y-6">
+      <header className="flex gap-4 items-start">
+        <div>
+          <img
+            className="rounded-full size-12 object-cover aspect-square grow min-w-12"
+            src={"/avatar_scholar.png"}
+          />
+        </div>
+        <div className="flex grow gap-4 items-center flex-wrap justify-between">
+          <div className="grow space-y-1">
+            <h2 className="text-2xl font-semibold leading-none">
+              <SkeletonLoader className="h-8 w-5/12 bg-primary/30" />
+            </h2>
+            <p className="text-stone-600 text-sm whitespace-normal">
+              <SkeletonLoader className="h-4 w-7/12 bg-stone-300" />
+            </p>
+          </div>
+          <div>
+            <Button className="rounded-2xl !px-4" variant="outline" disabled>
+              <UserPlusIcon />
+              Seguir
+            </Button>
+          </div>
+        </div>
+      </header>
+      <div className="md:flex space-y-2 md:space-y-0 gap-2">
+        <div className="basis-1/3 space-y-2 bg-foreground/3 p-6 rounded-lg">
+          <header className="font-semibold">Sobre</header>
+          <div className="leading-6 space-y-2">
+            <SkeletonLoader className="h-4 w-full bg-stone-300" />
+            <div className="flex gap-2">
+              <SkeletonLoader className="h-4 w-1/4 bg-stone-300" />
+              <SkeletonLoader className="h-4 w-3/4 bg-stone-300" />
+            </div>
+          </div>
+        </div>
+        <div className="basis-2/3 space-y-2 bg-foreground/3 p-6 rounded-lg">
+          <header className="font-semibold">Trabalhos relacionados</header>
+          <ul>
+            <li className="py-4">
+              <header className="font-medium underline flex mb-1">
+                <SkeletonLoader className="h-4 w-7/12 bg-primary/30" />
+                <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+              </header>
+              <div className="text-xs text-stone-600">
+                <SkeletonLoader className="h-4 w-5/12 bg-stone-300" />
+              </div>
+            </li>
+            <li className="py-4">
+              <header className="font-medium underline flex mb-1">
+                <SkeletonLoader className="h-4 w-6/12 bg-primary/30" />
+                <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+              </header>
+              <div className="text-xs text-stone-600">
+                <SkeletonLoader className="h-4 w-10/12 bg-stone-300" />
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type AuthorSummaryProps = {
+  author: ExtendedAuthorSchema;
+  requestState: "idle" | "loading" | "error" | "success";
+};
+export function AuthorSummary({ author, requestState }: AuthorSummaryProps) {
+  if (author.summary) {
+    return author.summary;
+  }
+
+  if (
+    requestState == "loading" ||
+    requestState == "success" ||
+    requestState == "idle"
+  ) {
+    return (
+      <>
+        <SkeletonLoader className="h-4 w-full bg-stone-300" />
+        <div className="flex gap-2">
+          <SkeletonLoader className="h-4 w-1/4 bg-stone-300" />
+          <SkeletonLoader className="h-4 w-3/4 bg-stone-300" />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="italic">Erro ao obter lista de trabalhos relacionados.</div>
+  );
+}
+
+type AuthorPublicationsPreviewProps = {
+  author: ExtendedAuthorSchema;
+  requestState: "idle" | "loading" | "error" | "success";
+};
+export function AuthorPublicationsPreview({
+  author,
+  requestState,
+}: AuthorPublicationsPreviewProps) {
+  if ((author.publications?.length ?? 0) > 0) {
+    return (
+      <ul>
+        {author.publications?.slice(0, 3).map((publication) => (
+          <li
+            className={cn("py-4", publication.citedbyUrl && "cursor-pointer")}
+            role="link"
+            key={publication.authorPubId}
+            onClick={() => {
+              if (publication.citedbyUrl) {
+                window.open(publication.citedbyUrl, "_blank");
+              }
+            }}
+          >
+            <header className="font-medium underline">
+              {publication.bib?.title}
+              <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+            </header>
+            <div className="text-xs text-stone-600">
+              {publication.bib?.citation}
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (
+    requestState == "loading" ||
+    requestState == "success" ||
+    requestState == "idle"
+  ) {
+    return (
+      <ul>
+        <li className="py-4">
+          <header className="font-medium underline flex mb-1">
+            <SkeletonLoader className="h-4 w-7/12 bg-primary/30" />
+            <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+          </header>
+          <div className="text-xs text-stone-600">
+            <SkeletonLoader className="h-4 w-5/12 bg-stone-300" />
+          </div>
+        </li>
+        <li className="py-4">
+          <header className="font-medium underline flex mb-1">
+            <SkeletonLoader className="h-4 w-6/12 bg-primary/30" />
+            <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+          </header>
+          <div className="text-xs text-stone-600">
+            <SkeletonLoader className="h-4 w-10/12 bg-stone-300" />
+          </div>
+        </li>
+      </ul>
+    );
+  }
+}
+
 type AuthorListingProps = {
   author: ExtendedAuthorSchema;
+  requestState: "idle" | "loading" | "error" | "success";
 };
-function AuthorListing({ author }: AuthorListingProps) {
+function AuthorListing({ author, requestState }: AuthorListingProps) {
   return (
     <div className="space-y-6">
       <header className="flex gap-4 items-center">
@@ -55,27 +219,62 @@ function AuthorListing({ author }: AuthorListingProps) {
       <div className="md:flex space-y-2 md:space-y-0 gap-2">
         <div className="basis-1/3 space-y-2 bg-foreground/3 p-6 rounded-lg">
           <header className="font-semibold">Sobre</header>
-          <p className="leading-6">{author.summary}</p>
+          <div className="leading-6 space-y-2">
+            <AuthorSummary author={author} requestState={requestState} />
+          </div>
         </div>
         <div className="basis-2/3 space-y-2 bg-foreground/3 p-6 rounded-lg">
           <header className="font-semibold">Trabalhos relacionados</header>
-          <ul>
-            {author.publications?.slice(0, 3).map((publication) => (
-              <li className="py-4">
-                <header className="font-medium underline">
-                  {publication.bib?.title}
-                  <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
-                </header>
-                <div className="text-xs text-stone-600">
-                  {publication.bib?.citation}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <AuthorPublicationsPreview
+            author={author}
+            requestState={requestState}
+          />
         </div>
       </div>
     </div>
   );
+}
+
+type AuthorResultsProps = {
+  authors: ExtendedAuthorSchema[];
+  requestState: "idle" | "loading" | "error" | "success";
+};
+function AuthorResults({ authors, requestState }: AuthorResultsProps) {
+  console.log(authors, requestState);
+  if (requestState == "error") {
+    return <div>Erro ao buscar por autores</div>;
+  }
+
+  if (
+    (requestState == "idle" || requestState == "loading") &&
+    authors.length === 0
+  ) {
+    return (
+      <div role="list" className="space-y-16">
+        {Array.from([1, 2, 3]).map((i) => (
+          <AuthorListingSkeletonLoader key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  if (
+    (requestState == "loading" || requestState == "success") &&
+    authors.length > 0
+  ) {
+    return (
+      <div role="list" className="space-y-16">
+        {authors.map((author) => (
+          <AuthorListing
+            key={author.scholarId}
+            author={author}
+            requestState={requestState}
+          />
+        ))}
+      </div>
+    );
+  }
+  throw Error("Invalid state");
 }
 
 function RouteComponent() {
@@ -157,11 +356,10 @@ function RouteComponent() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="authors" className="w-full">
-              <div role="list" className="space-y-16">
-                {requestData.authors.map((author) => (
-                  <AuthorListing key={author.scholarId} author={author} />
-                ))}
-              </div>
+              <AuthorResults
+                authors={requestData.authors}
+                requestState={requestState}
+              />
             </TabsContent>
             <TabsContent value="papers">Listagem de artigos</TabsContent>
           </Tabs>

@@ -215,7 +215,7 @@ async def summarize_author_publications(author: Author, query: str) -> str:
         )
 
         message = await client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-3-haiku-20240307",
             max_tokens=400,
             temperature=1,
             system="You are an expert assistant for summarizing research papers.",
