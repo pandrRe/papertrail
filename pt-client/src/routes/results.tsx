@@ -274,6 +274,11 @@ function AuthorResults({ authors, requestState }: AuthorResultsProps) {
       </div>
     );
   }
+
+  if (requestState == "success" && authors.length === 0) {
+    return <div>Nenhum autor encontrado.</div>;
+  }
+
   throw Error("Invalid state");
 }
 

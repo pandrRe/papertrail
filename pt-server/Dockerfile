@@ -16,4 +16,4 @@ RUN uv sync --frozen --no-cache
 COPY . /app
 
 # Run the application
-CMD ["/app/.venv/bin/fastapi", "run", "app/main.py", "--port", "80", "--host", "0.0.0.0"]
+ENTRYPOINT ["/app/.venv/bin/fastapi", "run", "app/main.py", "--port", "80", "--host", "0.0.0.0"]
