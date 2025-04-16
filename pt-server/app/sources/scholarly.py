@@ -162,72 +162,73 @@ async def summarize_author_publications(author: Author, query: str) -> str:
         cached = await Cache.get(
             session, CacheScope.ANTHROPIC_PUBLICATION_SUMMARY, hashed
         )
-        if cached and cached.content:
-            logger.debug(f"Cache hit for '{author['name']}':'{query}' - {hashed}")
-            return cached.content
+    if cached and cached.content:
+        logger.debug(f"Cache hit for '{author['name']}':'{query}' - {hashed}")
+        return cached.content
 
-        logger.debug(f"Cache miss for '{author['name']}':'{query}' - {hashed}")
-        if len(author["publications"]) > TOP_K_PUBLICATIONS:
-            raise Exception(
-                "Too many publications to summarize. First rank them using `rank_publications_by_query`."
-            )
-
-        publications = author["publications"]
-        formatted_publications = []
-        for pub in publications:
-            bib = pub.get("bib", {})
-            title = bib.get("title", "Untitled")
-            venue = bib.get("citation", "Unknown venue")
-            citations = pub.get("num_citations", 0)
-            formatted_publications.append(
-                f"- **{title}** ({venue}, cited {citations} times)"
-            )
-        input_text = "\n".join(formatted_publications)
-        prompt = textwrap.dedent(
-            f"""
-            Write a small blurb about the author {author['name']}'s research based on two factors:
-
-            1. The query: {query}
-            2. The author's publications:
-            {input_text}
-
-            The blurb should be a short paragraph, no more than 70 words. Oh, write in Brazilian Portuguese.
-            Do not make assertions on their influence on the subject such as "the author is a prominent figure in the field of..." or "the author is a renowned expert in..." or "the author is a prolific researcher in...".
-            Similar avoidances in Portuguese are "o autor é uma figura prominente no campo de...", "o autor é um especialista em..." e "o autor é um pesquisador prolifico em...".
-            Just go straight to a summary of the work, no opinions on the researcher themselves.
-
-            An example of a good summary is:
-            'Jeff Dean trabalha com inteligência artificial em larga escala, com foco em modelos de linguagem, redes neurais profundas e sistemas distribuídos para aprendizado de máquina.
-            Seus trabalhos incluem a introdução do TensorFlow, o uso de distilação de conhecimento em redes neurais, e investigações sobre as habilidades emergentes de modelos de linguagem de grande porte.
-            Também contribuiu com pesquisas sobre embeddings visuais e semânticos, aplicações de aprendizado de máquina na medicina e representação distribuída de palavras e frases.
-            Sua produção aborda tanto aspectos teóricos quanto práticos de IA escalável.'
-
-            Another one:
-            'Yoesoep Edhie Rachmad desenvolve pesquisas sobre a integração da inteligência artificial com realidade virtual e aumentada em contextos de marketing digital,
-            design inovador e estruturas sociais futuras. Seus trabalhos abordam estratégias para a excelência em marketing impulsionada por tecnologias emergentes,
-            além de discutir aspectos éticos e colaborativos na era do Management 5.0. As publicações exploram o impacto dessas tecnologias na transformação das interações humanas,
-            nas políticas públicas e na construção de sociedades digitais, com ênfase na coexistência entre avanços tecnológicos e valores humanos.'
-
-            Also, do not speak anything else other than the summary.
-
-            Summary:
-            """
+    logger.debug(f"Cache miss for '{author['name']}':'{query}' - {hashed}")
+    if len(author["publications"]) > TOP_K_PUBLICATIONS:
+        raise Exception(
+            "Too many publications to summarize. First rank them using `rank_publications_by_query`."
         )
 
-        message = await client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=400,
-            temperature=1,
-            system="You are an expert assistant for summarizing research papers.",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
+    publications = author["publications"]
+    formatted_publications = []
+    for pub in publications:
+        bib = pub.get("bib", {})
+        title = bib.get("title", "Untitled")
+        venue = bib.get("citation", "Unknown venue")
+        citations = pub.get("num_citations", 0)
+        formatted_publications.append(
+            f"- **{title}** ({venue}, cited {citations} times)"
         )
-        logger.debug(f"Got summary for '{author['name']}':'{query}' - {hashed}")
-        summary = message.content[0].text.strip()
+    input_text = "\n".join(formatted_publications)
+    prompt = textwrap.dedent(
+        f"""
+        Write a small blurb about the author {author['name']}'s research based on two factors:
+
+        1. The query: {query}
+        2. The author's publications:
+        {input_text}
+
+        The blurb should be a short paragraph, no more than 70 words. Oh, write in Brazilian Portuguese.
+        Do not make assertions on their influence on the subject such as "the author is a prominent figure in the field of..." or "the author is a renowned expert in..." or "the author is a prolific researcher in...".
+        Similar avoidances in Portuguese are "o autor é uma figura prominente no campo de...", "o autor é um especialista em..." e "o autor é um pesquisador prolifico em...".
+        Just go straight to a summary of the work, no opinions on the researcher themselves.
+
+        An example of a good summary is:
+        'Jeff Dean trabalha com inteligência artificial em larga escala, com foco em modelos de linguagem, redes neurais profundas e sistemas distribuídos para aprendizado de máquina.
+        Seus trabalhos incluem a introdução do TensorFlow, o uso de distilação de conhecimento em redes neurais, e investigações sobre as habilidades emergentes de modelos de linguagem de grande porte.
+        Também contribuiu com pesquisas sobre embeddings visuais e semânticos, aplicações de aprendizado de máquina na medicina e representação distribuída de palavras e frases.
+        Sua produção aborda tanto aspectos teóricos quanto práticos de IA escalável.'
+
+        Another one:
+        'Yoesoep Edhie Rachmad desenvolve pesquisas sobre a integração da inteligência artificial com realidade virtual e aumentada em contextos de marketing digital,
+        design inovador e estruturas sociais futuras. Seus trabalhos abordam estratégias para a excelência em marketing impulsionada por tecnologias emergentes,
+        além de discutir aspectos éticos e colaborativos na era do Management 5.0. As publicações exploram o impacto dessas tecnologias na transformação das interações humanas,
+        nas políticas públicas e na construção de sociedades digitais, com ênfase na coexistência entre avanços tecnológicos e valores humanos.'
+
+        Also, do not speak anything else other than the summary.
+
+        Summary:
+        """
+    )
+
+    message = await client.messages.create(
+        model="claude-3-haiku-20240307",
+        max_tokens=400,
+        temperature=1,
+        system="You are an expert assistant for summarizing research papers.",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
+    logger.debug(f"Got summary for '{author['name']}':'{query}' - {hashed}")
+    summary = message.content[0].text.strip()
+    async with start_session() as session:
         await Cache.set(
             session,
             CacheScope.ANTHROPIC_PUBLICATION_SUMMARY,
@@ -236,7 +237,7 @@ async def summarize_author_publications(author: Author, query: str) -> str:
         )
         await session.commit()
 
-        return summary
+    return summary
 
 
 async def fill_author(
@@ -246,22 +247,23 @@ async def fill_author(
         cached = await Cache.get(
             session, CacheScope.SCHOLARLY_AUTHOR_FILLED, author["scholar_id"]
         )
-        if cached:
-            validated = author_adapter.validate_json(cached.content)
-            validated["publications"] = rank_publications_by_query(
-                sentence_transformer, query, validated["publications"]
-            )
-            validated["summary"] = await summarize_author_publications(validated, query)
-            return StreamUpdateAuthor(
-                payload=validated,
-            )
-
-        result = await asyncio.to_thread(scholarly.fill, author)
-        validated = author_adapter.validate_python({"summary": None} | result)
+    if cached:
+        validated = author_adapter.validate_json(cached.content)
         validated["publications"] = rank_publications_by_query(
             sentence_transformer, query, validated["publications"]
         )
         validated["summary"] = await summarize_author_publications(validated, query)
+        return StreamUpdateAuthor(
+            payload=validated,
+        )
+
+    result = await asyncio.to_thread(scholarly.fill, author)
+    validated = author_adapter.validate_python({"summary": None} | result)
+    validated["publications"] = rank_publications_by_query(
+        sentence_transformer, query, validated["publications"]
+    )
+    validated["summary"] = await summarize_author_publications(validated, query)
+    async with start_session() as session:
         await Cache.set(
             session,
             CacheScope.SCHOLARLY_AUTHOR_FILLED,
@@ -272,7 +274,7 @@ async def fill_author(
             payload=validated,
         )
         await session.commit()
-        return streamable
+    return streamable
 
 
 def global_search(query: str) -> GlobalSearchResult:

@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import enum
 from typing import Optional
-from sqlalchemy import DateTime, UniqueConstraint, select
+from sqlalchemy import DateTime, UniqueConstraint, select, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.dialects.sqlite import insert as upsert
@@ -21,6 +21,13 @@ engine = create_async_engine(
     # echo=True
 )
 start_session = async_sessionmaker(engine, expire_on_commit=False)
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma(conn, connection_record):
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    cursor.close()
 
 
 class Base(DeclarativeBase):

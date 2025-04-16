@@ -1,4 +1,5 @@
 import Header from "@/components/Header";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -6,7 +7,13 @@ import type { ExtendedAuthorSchema, PublicationSchema } from "@/lib/contracts";
 import { createSearchStream } from "@/lib/searchStream";
 import { cn } from "@/lib/utils";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { SquareArrowOutUpRightIcon, UserPlusIcon } from "lucide-react";
+import {
+  BookTextIcon,
+  QuoteIcon,
+  SquareArrowOutUpRightIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import * as v from "valibot";
 
@@ -90,6 +97,87 @@ export function AuthorListingSkeletonLoader() {
   );
 }
 
+export function PublicationListingSkeletonLoader() {
+  return (
+    <Card className="w-lg p-0 overflow-clip gap-0">
+      <CardHeader className="p-0 m-0 bg-neutral-800 h-64"></CardHeader>
+      <CardContent className="py-5 px-7 m-0 bg-stone-50 space-y-3 grow">
+        <div>
+          <SkeletonLoader className="h-6 w-8/12 bg-stone-400" />
+        </div>
+        <div className="flex gap-2">
+          <SkeletonLoader className="h-4 w-1/4 bg-stone-300" />
+          <SkeletonLoader className="h-4 w-3/4 bg-stone-300" />
+        </div>
+        <div className="pt-2 flex gap-4 w-full">
+          <div className="flex gap-0.5">
+            <UsersIcon className="h-4" />
+            <SkeletonLoader className="h-4 w-5 bg-stone-400" />
+          </div>
+          <div className="flex gap-0.5">
+            <QuoteIcon className="h-4" />
+            <SkeletonLoader className="h-4 w-5 bg-stone-400" />
+          </div>
+          <div className="flex gap-0.5 grow">
+            <BookTextIcon className="h-4" />
+            <SkeletonLoader className="h-4 w-6/12 bg-stone-400" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type PublicationListingProps = {
+  publication: PublicationSchema;
+  requestState: "idle" | "loading" | "error" | "success";
+};
+export function PublicationListing({ publication }: PublicationListingProps) {
+  console.log(publication);
+  return (
+    <Card className="w-lg p-0 overflow-clip gap-0 grow">
+      <CardHeader className="p-0 m-0 bg-neutral-800 h-64 overflow-clip">
+        <div className="font-serif text-stone-50 text-center px-6 pt-12">
+          <div className="text-base text-balance">{publication.bib?.title}</div>
+          <div className="text-xs mt-2">
+            {Array.isArray(publication.bib?.author)
+              ? publication.bib?.author.join(", ")
+              : publication.bib?.author}
+          </div>
+          <div className="text-xs mt-4 text-justify px-6">
+            {publication.bib?.abstract}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="py-5 px-7 m-0 bg-stone-50 space-y-3 flex flex-col grow">
+        <div className="space-y-1.5 grow">
+          <div className="text-lg font-medium leading-6">
+            {publication.bib?.title}
+          </div>
+          <div className="flex gap-2">
+            {publication.bib?.abstract?.slice(0, 150)}
+            ...
+          </div>
+        </div>
+        <div className="pt-2 flex gap-4 w-full">
+          <div className="flex gap-0.5 items-center">
+            <UsersIcon className="h-4" />
+            {publication.bib?.author?.length}
+          </div>
+          <div className="flex gap-0.5 items-center">
+            <QuoteIcon className="h-4" />
+            {publication.numCitations}
+          </div>
+          <div className="flex gap-0.5 grow items-center">
+            <BookTextIcon className="h-4" />
+            {publication.bib?.citation}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 type AuthorSummaryProps = {
   author: ExtendedAuthorSchema;
   requestState: "idle" | "loading" | "error" | "success";
@@ -120,6 +208,16 @@ export function AuthorSummary({ author, requestState }: AuthorSummaryProps) {
   );
 }
 
+function getPublicationCitationUrl(
+  publication: PublicationSchema,
+  author: ExtendedAuthorSchema
+) {
+  if (!publication.authorPubId || !author.scholarId) {
+    return "#";
+  }
+  return `https://scholar.google.com/citations?view_op=view_citation&hl=pt&user=${author.scholarId}&citation_for_view=${publication.authorPubId}`;
+}
+
 type AuthorPublicationsPreviewProps = {
   author: ExtendedAuthorSchema;
   requestState: "idle" | "loading" | "error" | "success";
@@ -134,17 +232,13 @@ export function AuthorPublicationsPreview({
         {author.publications?.slice(0, 3).map((publication) => (
           <li
             className={cn("py-4", publication.citedbyUrl && "cursor-pointer")}
-            role="link"
             key={publication.authorPubId}
-            onClick={() => {
-              if (publication.citedbyUrl) {
-                window.open(publication.citedbyUrl, "_blank");
-              }
-            }}
           >
             <header className="font-medium underline">
-              {publication.bib?.title}
-              <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+              <a href={getPublicationCitationUrl(publication, author)}>
+                {publication.bib?.title}
+                <SquareArrowOutUpRightIcon className="ml-1 inline-block size-3.5" />
+              </a>
             </header>
             <div className="text-xs text-stone-600">
               {publication.bib?.citation}
@@ -192,7 +286,7 @@ type AuthorListingProps = {
 function AuthorListing({ author, requestState }: AuthorListingProps) {
   return (
     <div className="space-y-6">
-      <header className="flex gap-4 items-center">
+      <header className="flex gap-4 items-start">
         <div>
           <img
             className="rounded-full size-12 object-cover aspect-square grow min-w-12"
@@ -240,9 +334,8 @@ type AuthorResultsProps = {
   requestState: "idle" | "loading" | "error" | "success";
 };
 function AuthorResults({ authors, requestState }: AuthorResultsProps) {
-  console.log(authors, requestState);
   if (requestState == "error") {
-    return <div>Erro ao buscar por autores</div>;
+    return <div>Erro ao buscar por autores.</div>;
   }
 
   if (
@@ -277,6 +370,57 @@ function AuthorResults({ authors, requestState }: AuthorResultsProps) {
 
   if (requestState == "success" && authors.length === 0) {
     return <div>Nenhum autor encontrado.</div>;
+  }
+
+  throw Error("Invalid state");
+}
+
+type PublicationResultsProps = {
+  publications: PublicationSchema[];
+  requestState: "idle" | "loading" | "error" | "success";
+};
+function PublicationResults({
+  publications,
+  requestState,
+}: PublicationResultsProps) {
+  if (requestState == "error") {
+    return <div>Erro ao buscar por publicações.</div>;
+  }
+
+  if (
+    (requestState == "idle" || requestState == "loading") &&
+    publications.length === 0
+  ) {
+    return (
+      <div role="list" className="flex flex-wrap gap-x-4 gap-y-8">
+        {Array.from([1, 2, 3, 4]).map((i) => (
+          <PublicationListingSkeletonLoader key={i} />
+        ))}
+      </div>
+    );
+  }
+  if (
+    (requestState == "loading" || requestState == "success") &&
+    publications.length > 0
+  ) {
+    return (
+      <div
+        role="list"
+        className="flex flex-wrap gap-x-4 gap-y-8 justify-center"
+      >
+        {publications.map((publication) => (
+          <PublicationListing
+            key={publication.authorPubId}
+            publication={publication}
+            requestState={requestState}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (requestState == "success" && publications.length === 0) {
+    return <div>Nenhuma publicação encontrado.</div>;
   }
 
   throw Error("Invalid state");
@@ -345,7 +489,7 @@ function RouteComponent() {
   return (
     <section className="w-full">
       <Header />
-      <div className="w-5xl max-w-dvw px-4 pt-[clamp(2em,_10vw,_10vh)] mx-auto space-y-8 pb-12">
+      <div className="w-6xl max-w-dvw px-4 pt-[clamp(2em,_10vw,_10vh)] mx-auto space-y-8 pb-12">
         <header className="text-xl font-medium">
           <h1>Exibindo resultados para "{query}":</h1>
         </header>
@@ -366,7 +510,12 @@ function RouteComponent() {
                 requestState={requestState}
               />
             </TabsContent>
-            <TabsContent value="papers">Listagem de artigos</TabsContent>
+            <TabsContent value="papers" className="w-full">
+              <PublicationResults
+                publications={requestData.publications}
+                requestState={requestState}
+              />
+            </TabsContent>
           </Tabs>
         </div>
       </div>
