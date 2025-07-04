@@ -21,6 +21,10 @@ async def migrator():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
+    try:
+        torch.multiprocessing.set_start_method("spawn")
+    except Exception:
+        print("pass")
     model = SentenceTransformer("all-MiniLM-L6-v2")
     print("Model started.")
 

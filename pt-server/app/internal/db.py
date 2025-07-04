@@ -36,6 +36,7 @@ class Base(DeclarativeBase):
 
 class CacheScope(enum.Enum):
     SCHOLARLY_AUTHOR_FILLED = "scholarly-author-filled"
+    SCHOLARLY_PUBLICATION_FILLED = "scholarly-publication-filled"
     SCHOLARLY_SEARCH_KEYWORDS = "scholarly-search-keywords"
     SCHOLARLY_SEARCH_PUBLICATIONS = "scholarly-search-publications"
     ANTHROPIC_PUBLICATION_SUMMARY = "anthropic-publication-summary"

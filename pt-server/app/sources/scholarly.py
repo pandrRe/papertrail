@@ -47,7 +47,17 @@ class StreamUpdateAuthor(PtBaseModel):
     payload: ExtendedAuthor
 
 
-Streamable = StreamSetAuthorList | StreamSetPublicationList | StreamUpdateAuthor
+class StreamUpdatePublication(PtBaseModel):
+    type: Literal["update:publication"] = "update:publication"
+    payload: Publication
+
+
+Streamable = (
+    StreamSetAuthorList
+    | StreamSetPublicationList
+    | StreamUpdateAuthor
+    | StreamUpdatePublication
+)
 
 
 class StreamPacket(PtBaseModel):
@@ -277,6 +287,35 @@ async def fill_author(
     return streamable
 
 
+async def fill_publication(publication: Publication):
+    async with start_session() as session:
+        cached = await Cache.get(
+            session,
+            CacheScope.SCHOLARLY_PUBLICATION_FILLED,
+            publication["url_scholarbib"],
+        )
+    if cached:
+        validated = publication_adapter.validate_json(cached.content)
+        return StreamUpdatePublication(
+            payload=validated,
+        )
+
+    result = await asyncio.to_thread(scholarly.fill, publication)
+    validated = publication_adapter.validate_python(result)
+    async with start_session() as session:
+        await Cache.set(
+            session,
+            CacheScope.SCHOLARLY_PUBLICATION_FILLED,
+            publication["url_scholarbib"],
+            json.dumps(validated),
+        )
+        streamable = StreamUpdatePublication(
+            payload=validated,
+        )
+        await session.commit()
+    return streamable
+
+
 def global_search(query: str) -> GlobalSearchResult:
     """
     Search for a query in Google Scholar and return the results.
@@ -321,15 +360,16 @@ async def global_search_stream(
         yield resolved_result
 
     authors = await loading_authors
-    fill_tasks: list[asyncio.Task[Author]] = list(
-        map(
-            lambda author: asyncio.create_task(
-                fill_author(author, query, sentence_transformer)
-            ),
-            authors.payload,
-        )
-    )
+    publications = await loading_publications
 
-    for filled_author in asyncio.as_completed(fill_tasks):
-        resolved = await filled_author
+    fill_tasks: list[asyncio.Task[Streamable]] = []
+    for author in authors.payload:
+        fill_tasks.append(
+            asyncio.create_task(fill_author(author, query, sentence_transformer))
+        )
+    for publication in publications.payload:
+        fill_tasks.append(asyncio.create_task(fill_publication(publication)))
+
+    for filled in asyncio.as_completed(fill_tasks):
+        resolved = await filled
         yield resolved
