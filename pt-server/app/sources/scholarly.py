@@ -4,8 +4,9 @@ import hashlib
 import torch
 import textwrap
 import os
+import time
 import anthropic
-from typing import AsyncGenerator, Literal, NotRequired, Optional
+from typing import AsyncGenerator, Optional
 from scholarly import scholarly, Author, Publication
 from scholarly.data_types import BibEntry
 from itertools import islice
@@ -14,13 +15,17 @@ from sentence_transformers import SentenceTransformer
 from ..internal.logger import logger
 from ..internal.base_model import PtBaseModel
 from ..internal.db import CacheScope, start_session, Cache
+from ..internal.streamable import (
+    ExtendedAuthor, 
+    Streamable, 
+    StreamSetAuthorList, 
+    StreamSetPublicationList, 
+    StreamUpdateAuthor, 
+    StreamUpdatePublication
+)
 
 # Runtime patch of BibEntry to allow for list[str] for authors
 BibEntry.__annotations__["author"] = str | list[str]
-
-
-class ExtendedAuthor(Author):
-    summary: NotRequired[str | None]
 
 
 class GlobalSearchResult(PtBaseModel):
@@ -32,59 +37,49 @@ author_adapter = TypeAdapter(ExtendedAuthor)
 publication_adapter = TypeAdapter(Publication)
 
 
-class StreamSetAuthorList(PtBaseModel):
-    type: Literal["set:author:list"] = "set:author:list"
-    payload: list[ExtendedAuthor]
-
-
-class StreamSetPublicationList(PtBaseModel):
-    type: Literal["set:publication:list"] = "set:publication:list"
-    payload: list[Publication]
-
-
-class StreamUpdateAuthor(PtBaseModel):
-    type: Literal["update:author"] = "update:author"
-    payload: ExtendedAuthor
-
-
-class StreamUpdatePublication(PtBaseModel):
-    type: Literal["update:publication"] = "update:publication"
-    payload: Publication
-
-
-Streamable = (
-    StreamSetAuthorList
-    | StreamSetPublicationList
-    | StreamUpdateAuthor
-    | StreamUpdatePublication
-)
-
-
-class StreamPacket(PtBaseModel):
-    stream_id: str
-    content: Streamable
-
-
 def search_keywords_slice(keywords: list[str], slice_size: int = 10) -> list[Author]:
+    logger.debug("Executing Google Scholar keyword search", 
+                keywords=keywords, 
+                slice_size=slice_size)
     result = scholarly.search_keywords(keywords)
     sliced = islice(result, slice_size)
     sliced = list(sliced)
+    logger.debug("Google Scholar keyword search completed", 
+                keywords=keywords,
+                actual_results=len(sliced))
     return sliced
 
 
 def search_publications_slice(query: str, slice_size: int = 10) -> list[Publication]:
+    logger.debug("Executing Google Scholar publication search", 
+                query=query, 
+                slice_size=slice_size)
     result = scholarly.search_pubs(query)
     sliced = islice(result, slice_size)
     sliced = list(sliced)
+    logger.debug("Google Scholar publication search completed", 
+                query=query,
+                actual_results=len(sliced))
     return sliced
 
 
 async def wrapped_search_keywords(keywords: list[str], slice_size: int = 10):
+    logger.debug("Starting keyword search", 
+                keywords=keywords, 
+                keyword_count=len(keywords),
+                slice_size=slice_size)
+    
     async with start_session() as session:
+        cache_key = json.dumps(keywords)
+        logger.debug("Checking cache for keywords", cache_key=cache_key)
+        
         cached = await Cache.get(
-            session, CacheScope.SCHOLARLY_SEARCH_KEYWORDS, json.dumps(keywords)
+            session, CacheScope.SCHOLARLY_SEARCH_KEYWORDS, cache_key
         )
         if cached:
+            logger.info("Cache hit for keyword search", 
+                       keywords=keywords,
+                       cached_at=cached.inserted_at.isoformat() if cached.inserted_at else None)
             deser = json.loads(cached.content)
             validated = [
                 author_adapter.validate_python({"summary": None} | author)
@@ -93,14 +88,29 @@ async def wrapped_search_keywords(keywords: list[str], slice_size: int = 10):
             return StreamSetAuthorList(
                 payload=validated,
             )
+        
+        logger.info("Cache miss for keyword search - fetching from Google Scholar",
+                   keywords=keywords)
+        
+        start_time = time.time()
         result = await asyncio.to_thread(search_keywords_slice, keywords, slice_size)
+        search_duration = time.time() - start_time
+        
+        logger.info("Keyword search completed", 
+                   keywords=keywords,
+                   result_count=len(result),
+                   duration_seconds=round(search_duration, 2))
+        
         await Cache.set(
             session,
             CacheScope.SCHOLARLY_SEARCH_KEYWORDS,
-            json.dumps(keywords),
+            cache_key,
             json.dumps(result),
         )
         await session.commit()
+        
+        logger.debug("Cached keyword search results", cache_key=cache_key)
+        
         return StreamSetAuthorList(
             payload=result,
         )
@@ -342,34 +352,93 @@ async def global_search_stream(
     Search for a query in Google Scholar and streams the results.
     Includes authors by keywords and publications.
     """
-    logger.debug(f"Searching for query: {query}")
+    logger.info("Starting global search stream", 
+               query=query, 
+               query_length=len(query))
+    
     keywords = query.split(",")
+    logger.debug("Parsed search keywords", 
+                original_query=query,
+                keywords=keywords,
+                keyword_count=len(keywords))
 
-    loading_authors, loading_publications = (
-        asyncio.create_task(wrapped_search_keywords(keywords)),
-        asyncio.create_task(wrapped_search_publications(query)),
-    )
+    # Phase 1: Initial search with individual error handling
+    loading_authors = asyncio.create_task(wrapped_search_keywords(keywords))
+    loading_publications = asyncio.create_task(wrapped_search_publications(query))
+    initial_tasks = [loading_authors, loading_publications]
 
-    for result in asyncio.as_completed(
-        (
-            loading_authors,
-            loading_publications,
-        )
-    ):
-        resolved_result = await result
-        yield resolved_result
+    authors = None
+    publications = None
 
-    authors = await loading_authors
-    publications = await loading_publications
+    logger.debug("Initial search tasks created", 
+                task_count=len(initial_tasks),
+                task_types=["authors", "publications"])
+    try:
+        # Stream initial results as they complete, handling individual failures
+        for result in asyncio.as_completed(initial_tasks, timeout=30.0):
+            try:
+                resolved_result = await result
+                yield resolved_result
 
-    fill_tasks: list[asyncio.Task[Streamable]] = []
-    for author in authors.payload:
-        fill_tasks.append(
-            asyncio.create_task(fill_author(author, query, sentence_transformer))
-        )
-    for publication in publications.payload:
-        fill_tasks.append(asyncio.create_task(fill_publication(publication)))
+                # Track which result we got for later use
+                if isinstance(resolved_result, StreamSetAuthorList):
+                    authors = resolved_result
+                elif isinstance(resolved_result, StreamSetPublicationList):
+                    publications = resolved_result
 
-    for filled in asyncio.as_completed(fill_tasks):
-        resolved = await filled
-        yield resolved
+            except Exception as e:
+                print(e)
+                logger.error(f"Initial search task failed: {e}")
+                # Continue with other tasks - don't break the stream
+
+        # Phase 2: Fill details with individual error handling
+        fill_tasks: list[asyncio.Task[Streamable]] = []
+
+        try:
+            # Only create fill tasks for successful initial searches
+            if authors:
+                for author in authors.payload:
+                    fill_tasks.append(
+                        asyncio.create_task(
+                            fill_author(author, query, sentence_transformer)
+                        )
+                    )
+            if publications:
+                for publication in publications.payload:
+                    fill_tasks.append(
+                        asyncio.create_task(fill_publication(publication))
+                    )
+
+            # Stream fill results as they complete, handling individual failures
+            for filled in asyncio.as_completed(fill_tasks, timeout=60.0):
+                try:
+                    resolved = await filled
+                    yield resolved
+                except Exception as e:
+                    logger.error(f"Fill task failed: {e}")
+                    # Continue with other tasks - don't break the stream
+
+        finally:
+            # Always cancel any remaining fill tasks on generator cleanup
+            for task in fill_tasks:
+                if not task.done():
+                    task.cancel()
+
+            # Wait for cancellation to complete, ignoring exceptions
+            if fill_tasks:
+                await asyncio.gather(*fill_tasks, return_exceptions=True)
+
+    except asyncio.TimeoutError:
+        logger.error(f"Search timed out for query: {query}")
+        # Don't re-raise - let partial results through
+    except Exception as e:
+        logger.error(f"Unexpected error in search for query '{query}': {e}")
+        # Don't re-raise - let partial results through
+    finally:
+        # Always cancel any remaining initial tasks on generator cleanup
+        for task in initial_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for cancellation to complete, ignoring exceptions
+        await asyncio.gather(*initial_tasks, return_exceptions=True)
