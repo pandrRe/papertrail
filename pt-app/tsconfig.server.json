@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "checkJs": false,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./client/*"],
+      "#/*": ["./server/*"]
+    },
+    "types": ["bun-types"],
+    "lib": ["ES2022"]
+  },
+  "include": [
+    "server/**/*.ts",
+    "server/**/*.tsx",
+    "server/**/*.js",
+    "server/**/*.jsx"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

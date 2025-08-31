@@ -1,8 +1,318 @@
--- DuckDB table definitions for OpenAlex entities (excluding works)
+-- DuckDB table definitions for OpenAlex entities
+
+-- Works table
+DROP TABLE works;
+CREATE TABLE IF NOT EXISTS works (
+    -- Basic identifiers
+    id VARCHAR PRIMARY KEY,
+    doi VARCHAR,
+    title VARCHAR,
+    display_name VARCHAR,
+    -- publication_year INTEGER,
+    publication_date DATE,
+    language VARCHAR,
+    type VARCHAR,
+    oa_url VARCHAR, -- new
+    -- type_crossref VARCHAR,
+    
+    -- IDs object
+    ids STRUCT(
+        openalex VARCHAR,
+        doi VARCHAR,
+        mag BIGINT,
+        pmid VARCHAR,
+        pmcid VARCHAR
+    ),
+
+    primary_topic_id VARCHAR, -- new, to link to topics table
+    citation_normalized_percentile_value DOUBLE, -- new, to store percentile directly
+    
+
+    -- authorships STRUCT(
+    --     id VARCHAR,
+    --     display_name VARCHAR,
+    --     orcid VARCHAR
+    -- )[],
+    
+    -- Citation metrics
+    cited_by_count INTEGER,
+    fwci DOUBLE,
+    
+    -- -- Citation normalized percentile
+    -- citation_normalized_percentile STRUCT(
+    --     value DOUBLE,
+    --     is_in_top_1_percent BOOLEAN,
+    --     is_in_top_10_percent BOOLEAN
+    -- ),
+    
+    -- Bibliography
+    -- biblio STRUCT(
+    --     volume VARCHAR,
+    --     issue VARCHAR,
+    --     first_page VARCHAR,
+    --     last_page VARCHAR
+    -- ),
+    
+    -- Open Access
+    -- open_access STRUCT(
+    --     is_oa BOOLEAN,
+    --     oa_status VARCHAR, -- gold, green, hybrid, bronze, closed, diamond
+    --     oa_url VARCHAR,
+    --     any_repository_has_fulltext BOOLEAN
+    -- ),
+    
+    -- Primary location
+    -- primary_location STRUCT(
+    --     is_oa BOOLEAN,
+    --     landing_page_url VARCHAR,
+    --     pdf_url VARCHAR,
+    --     license VARCHAR,
+    --     license_id VARCHAR,
+    --     version VARCHAR, -- publishedVersion, acceptedVersion, submittedVersion
+    --     is_accepted BOOLEAN,
+    --     is_published BOOLEAN,
+    --     source STRUCT(
+    --         id VARCHAR,
+    --         display_name VARCHAR,
+    --         issn_l VARCHAR,
+    --         issn VARCHAR[],
+    --         is_oa BOOLEAN,
+    --         is_in_doaj BOOLEAN,
+    --         is_indexed_in_scopus BOOLEAN,
+    --         is_core BOOLEAN,
+    --         host_organization VARCHAR,
+    --         host_organization_name VARCHAR,
+    --         host_organization_lineage VARCHAR[],
+    --         host_organization_lineage_names VARCHAR[],
+    --         type VARCHAR -- journal, repository, conference
+    --     )
+    -- ),
+    
+    -- Best OA location (same schema as primary_location)
+    -- best_oa_location STRUCT(
+    --     is_oa BOOLEAN,
+    --     landing_page_url VARCHAR,
+    --     pdf_url VARCHAR,
+    --     license VARCHAR,
+    --     license_id VARCHAR,
+    --     version VARCHAR,
+    --     is_accepted BOOLEAN,
+    --     is_published BOOLEAN,
+    --     source STRUCT(
+    --         id VARCHAR,
+    --         display_name VARCHAR,
+    --         issn_l VARCHAR,
+    --         issn VARCHAR[],
+    --         is_oa BOOLEAN,
+    --         is_in_doaj BOOLEAN,
+    --         is_indexed_in_scopus BOOLEAN,
+    --         is_core BOOLEAN,
+    --         host_organization VARCHAR,
+    --         host_organization_name VARCHAR,
+    --         host_organization_lineage VARCHAR[],
+    --         host_organization_lineage_names VARCHAR[],
+    --         type VARCHAR
+    --     )
+    -- ),
+    
+    -- Locations (list of structs) - OPTIONAL
+    -- locations STRUCT(
+    --     is_oa BOOLEAN,
+    --     landing_page_url VARCHAR,
+    --     pdf_url VARCHAR,
+    --     license VARCHAR,
+    --     license_id VARCHAR,
+    --     version VARCHAR,
+    --     is_accepted BOOLEAN,
+    --     is_published BOOLEAN,
+    --     source STRUCT(
+    --         id VARCHAR,
+    --         display_name VARCHAR,
+    --         issn_l VARCHAR,
+    --         issn VARCHAR[],
+    --         is_oa BOOLEAN,
+    --         is_in_doaj BOOLEAN,
+    --         is_indexed_in_scopus BOOLEAN,
+    --         is_core BOOLEAN,
+    --         host_organization VARCHAR,
+    --         host_organization_name VARCHAR,
+    --         host_organization_lineage VARCHAR[],
+    --         host_organization_lineage_names VARCHAR[],
+    --         type VARCHAR
+    --     )
+    -- )[],
+    -- locations_count INTEGER,
+    
+    -- Authorships (list of structs) - OPTIONAL
+    -- authorships STRUCT(
+    --     author_position VARCHAR, -- first, middle, last
+    --     is_corresponding BOOLEAN,
+    --     raw_author_name VARCHAR,
+    --     raw_affiliation_strings VARCHAR[],
+    --     author STRUCT(
+    --         id VARCHAR,
+    --         display_name VARCHAR,
+    --         orcid VARCHAR
+    --     ),
+    --     institutions STRUCT(
+    --         id VARCHAR,
+    --         display_name VARCHAR,
+    --         ror VARCHAR,
+    --         country_code VARCHAR,
+    --         type VARCHAR,
+    --         lineage VARCHAR[]
+    --     )[],
+    --     countries VARCHAR[],
+    --     affiliations STRUCT(
+    --         raw_affiliation_string VARCHAR,
+    --         institution_ids VARCHAR[]
+    --     )[]
+    -- )[],
+    
+    -- Authorship counters
+    -- corresponding_author_ids VARCHAR[],
+    -- corresponding_institution_ids VARCHAR[],
+    -- countries_distinct_count INTEGER,
+    -- institutions_distinct_count INTEGER,
+    
+    -- Topics (list of structs) - OPTIONAL
+    -- topics STRUCT(
+    --     id VARCHAR,
+    --     display_name VARCHAR,
+    --     score DOUBLE,
+    --     subfield STRUCT(id VARCHAR, display_name VARCHAR),
+    --     field STRUCT(id VARCHAR, display_name VARCHAR),
+    --     domain STRUCT(id VARCHAR, display_name VARCHAR)
+    -- )[],
+    
+    -- Primary topic
+    -- primary_topic STRUCT(
+    --     id VARCHAR,
+    --     display_name VARCHAR,
+    --     score DOUBLE,
+    --     subfield STRUCT(id VARCHAR, display_name VARCHAR),
+    --     field STRUCT(id VARCHAR, display_name VARCHAR),
+    --     domain STRUCT(id VARCHAR, display_name VARCHAR)
+    -- ),
+    
+    -- Keywords (list of structs) - OPTIONAL
+    -- keywords STRUCT(
+    --     id VARCHAR,
+    --     display_name VARCHAR,
+    --     score DOUBLE
+    -- )[],
+    
+    -- Concepts (deprecated but still present) - OPTIONAL
+    -- concepts STRUCT(
+    --     id VARCHAR,
+    --     wikidata VARCHAR,
+    --     display_name VARCHAR,
+    --     level INTEGER,
+    --     score DOUBLE
+    -- )[],
+    
+    -- Sustainable Development Goals - OPTIONAL
+    -- sustainable_development_goals STRUCT(
+    --     id VARCHAR,
+    --     display_name VARCHAR,
+    --     score DOUBLE
+    -- )[],
+    
+    -- MeSH tags - OPTIONAL
+    -- mesh STRUCT(
+    --     descriptor_ui VARCHAR,
+    --     descriptor_name VARCHAR,
+    --     qualifier_ui VARCHAR,
+    --     qualifier_name VARCHAR,
+    --     is_major_topic BOOLEAN
+    -- )[],
+    
+    -- APC (Article Processing Charges)
+    -- apc_list STRUCT(
+    --     value INTEGER,
+    --     currency VARCHAR,
+    --     value_usd INTEGER,
+    --     provenance VARCHAR
+    -- ),
+    -- apc_paid STRUCT(
+    --     value INTEGER,
+    --     currency VARCHAR,
+    --     value_usd INTEGER,
+    --     provenance VARCHAR
+    -- ),
+    
+    -- Grants - OPTIONAL
+    -- grants STRUCT(
+    --     funder VARCHAR,
+    --     funder_display_name VARCHAR,
+    --     award_id VARCHAR
+    -- )[],
+    
+    -- References and related works - OPTIONAL
+    -- referenced_works VARCHAR[],
+    -- referenced_works_count INTEGER,
+    -- related_works VARCHAR[],
+    
+    -- Abstract inverted index (stored as JSON string)
+    -- abstract_inverted_index VARCHAR, -- JSON string
+    
+    -- Counts by year - OPTIONAL
+    -- counts_by_year STRUCT(
+    --     year INTEGER,
+    --     cited_by_count INTEGER
+    -- )[],
+    
+    -- Boolean flags
+    -- has_fulltext BOOLEAN,
+    -- fulltext_origin VARCHAR, -- pdf, ngrams
+    -- is_retracted BOOLEAN,
+    -- is_paratext BOOLEAN,
+    
+    -- Indexed in - OPTIONAL
+    -- indexed_in VARCHAR[], -- crossref, doaj, pubmed, arxiv
+    
+    -- Datasets and versions - OPTIONAL
+    -- datasets VARCHAR[],
+    -- versions VARCHAR[],
+    
+    -- Institution assertions (stored as JSON string)
+    -- institution_assertions VARCHAR, -- JSON string
+    
+    -- Citation percentile by year
+    -- cited_by_percentile_year STRUCT(
+    --     min INTEGER,
+    --     max INTEGER
+    -- ),
+    
+    -- Timestamps
+    created_date DATE,
+    updated_date TIMESTAMPTZ
+);
+
+-- API Queries table - tracks search queries used to search OpenAlex works
+-- DROP TABLE works_api_queries;
+-- DROP TABLE api_queries;
+CREATE TABLE IF NOT EXISTS api_queries (
+    query_text VARCHAR PRIMARY KEY,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    max_pages INTEGER,
+    total_results INTEGER
+);
+
+-- Works API Queries table - N:M relationship between queries and works
+CREATE TABLE IF NOT EXISTS works_api_queries (
+    query_text VARCHAR NOT NULL,
+    work_id VARCHAR NOT NULL,
+    page_number INTEGER NOT NULL,
+    position_in_page INTEGER,
+    relevance_score DOUBLE NOT NULL,    
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (query_text, work_id),
+);
 -- Authors table
-DROP TABLE IF EXISTS author_topics;
-DROP TABLE IF EXISTS author_affiliations;
-DROP TABLE IF EXISTS authors;
+-- DROP TABLE IF EXISTS author_topics;
+-- DROP TABLE IF EXISTS author_affiliations;
+-- DROP TABLE IF EXISTS authors;
 CREATE TABLE IF NOT EXISTS authors (
     -- Basic identifiers
     id VARCHAR PRIMARY KEY,
@@ -674,6 +984,21 @@ CREATE TABLE IF NOT EXISTS topics (
 );
 
 -- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_works_display_name ON works(display_name);
+-- CREATE INDEX IF NOT EXISTS idx_works_publication_year ON works(publication_year);
+-- CREATE INDEX IF NOT EXISTS idx_works_cited_by_count ON works(cited_by_count);
+CREATE INDEX IF NOT EXISTS idx_works_type ON works(type);
+CREATE INDEX IF NOT EXISTS idx_works_language ON works(language);
+CREATE INDEX IF NOT EXISTS idx_works_doi ON works(doi);
+
+CREATE INDEX IF NOT EXISTS idx_api_queries_query_text ON api_queries(query_text);
+CREATE INDEX IF NOT EXISTS idx_api_queries_created_at ON api_queries(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_works_api_queries_query_text ON works_api_queries(query_text);
+CREATE INDEX IF NOT EXISTS idx_works_api_queries_work_id ON works_api_queries(work_id);
+CREATE INDEX IF NOT EXISTS idx_works_api_queries_page_number ON works_api_queries(page_number);
+CREATE INDEX IF NOT EXISTS idx_works_api_queries_created_at ON works_api_queries(created_at);
+
 CREATE INDEX IF NOT EXISTS idx_authors_display_name ON authors(display_name);
 CREATE INDEX IF NOT EXISTS idx_authors_works_count ON authors(works_count);
 CREATE INDEX IF NOT EXISTS idx_authors_cited_by_count ON authors(cited_by_count);
@@ -717,9 +1042,7 @@ CREATE TABLE IF NOT EXISTS author_topics (
     author_id VARCHAR NOT NULL,
     topic_id VARCHAR NOT NULL,
     value DOUBLE NOT NULL, -- from the value field in authors.topic_share
-    PRIMARY KEY (author_id, topic_id),
-    FOREIGN KEY (author_id) REFERENCES authors(id),
-    FOREIGN KEY (topic_id) REFERENCES topics(id)
+    PRIMARY KEY (author_id, topic_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_author_topics_author_id ON author_topics(author_id);
@@ -731,10 +1054,50 @@ CREATE TABLE IF NOT EXISTS author_affiliations (
     author_id VARCHAR NOT NULL,
     institution_id VARCHAR NOT NULL,
     years INTEGER[], -- array of years the author was affiliated with this institution
-    PRIMARY KEY (author_id, institution_id),
-    FOREIGN KEY (author_id) REFERENCES authors(id),
-    FOREIGN KEY (institution_id) REFERENCES institutions(id)
+    PRIMARY KEY (author_id, institution_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_author_affiliations_author_id ON author_affiliations(author_id);
 CREATE INDEX IF NOT EXISTS idx_author_affiliations_institution_id ON author_affiliations(institution_id);
+
+-- Work-Source relationship table (denormalized from works.primary_location.source and works.locations)
+CREATE TABLE IF NOT EXISTS work_sources (
+    work_id VARCHAR NOT NULL,
+    source_id VARCHAR NOT NULL,
+    is_primary BOOLEAN DEFAULT FALSE, -- TRUE if this is the primary_location source
+    is_oa BOOLEAN,
+    pdf_url VARCHAR,
+    version VARCHAR, -- publishedVersion, acceptedVersion, submittedVersion
+    is_accepted BOOLEAN,
+    is_published BOOLEAN,
+    PRIMARY KEY (work_id, source_id, is_primary)
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_sources_work_id ON work_sources(work_id);
+CREATE INDEX IF NOT EXISTS idx_work_sources_source_id ON work_sources(source_id);
+CREATE INDEX IF NOT EXISTS idx_work_sources_is_primary ON work_sources(is_primary);
+CREATE INDEX IF NOT EXISTS idx_work_sources_is_oa ON work_sources(is_oa);
+
+-- Authorships relationship table (denormalized from works.authorships)
+CREATE TABLE IF NOT EXISTS authorships (
+    work_id VARCHAR NOT NULL,
+    author_id VARCHAR NOT NULL,
+    author_position VARCHAR, -- first, middle, last
+    PRIMARY KEY (work_id, author_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_authorships_work_id ON authorships(work_id);
+CREATE INDEX IF NOT EXISTS idx_authorships_author_id ON authorships(author_id);
+CREATE INDEX IF NOT EXISTS idx_authorships_author_position ON authorships(author_position);
+
+-- Work-Institution relationship table (denormalized from works.authorships.institutions)
+CREATE TABLE IF NOT EXISTS work_institutions (
+    work_id VARCHAR NOT NULL,
+    author_id VARCHAR NOT NULL, -- which author is affiliated with this institution
+    institution_id VARCHAR NOT NULL,
+    PRIMARY KEY (work_id, author_id, institution_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_institutions_work_id ON work_institutions(work_id);
+CREATE INDEX IF NOT EXISTS idx_work_institutions_author_id ON work_institutions(author_id);
+CREATE INDEX IF NOT EXISTS idx_work_institutions_institution_id ON work_institutions(institution_id);

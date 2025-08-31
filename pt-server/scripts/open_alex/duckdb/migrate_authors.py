@@ -24,10 +24,10 @@ from typing import List
 parquet_destination_path = Path("/Volumes/T7/openalex-parquet")
 
 # Default minimum h-index threshold for filtering
-DEFAULT_MIN_H_INDEX = 10
+DEFAULT_MIN_H_INDEX = 4
 
 # Chunking configuration
-DEFAULT_CHUNK_SIZE = 100_000  # Number of records to process at once
+DEFAULT_CHUNK_SIZE = 80_000  # Number of records to process at once
 
 
 def get_script_dir() -> Path:
@@ -351,7 +351,7 @@ def migrate_author_affiliations(
 
             # Process file in chunks to avoid memory issues
             file_start = time.time()
-            
+
             # First get the total count for this file
             count_query = f"""
             SELECT COUNT(*) FROM read_parquet('{parquet_file}')
@@ -360,17 +360,19 @@ def migrate_author_affiliations(
                 AND len(affiliations) > 0
             """
             total_file_records = conn.execute(count_query).fetchone()[0]
-            
+
             if total_file_records == 0:
-                print(f"    ⏭️  No records with affiliations matching h-index >= {min_h_index} in {parquet_file.name}")
+                print(
+                    f"    ⏭️  No records with affiliations matching h-index >= {min_h_index} in {parquet_file.name}"
+                )
                 continue
-                
+
             # Process in chunks
             chunks_processed = 0
-            
+
             for offset in range(0, total_file_records, chunk_size):
                 chunks_processed += 1
-                
+
                 # Insert chunk with IGNORE for duplicates
                 insert_query = f"""
                 INSERT OR IGNORE INTO author_affiliations (author_id, institution_id, years)
@@ -386,14 +388,18 @@ def migrate_author_affiliations(
                     LIMIT {chunk_size} OFFSET {offset}
                 )
                 """
-                
+
                 try:
                     conn.execute(insert_query)
-                    print(f"      📦 Processed affiliations chunk {chunks_processed} (offset {offset})")
+                    print(
+                        f"      📦 Processed affiliations chunk {chunks_processed} (offset {offset})"
+                    )
                 except Exception as e:
-                    print(f"      ⚠️  Error in affiliations chunk {chunks_processed}: {e}")
+                    print(
+                        f"      ⚠️  Error in affiliations chunk {chunks_processed}: {e}"
+                    )
                     continue
-            
+
             file_duration = time.time() - file_start
 
             # Get count of rows added from this file
@@ -471,7 +477,9 @@ def migrate_all_author_data(
     ]
 
     for table_name, migrate_func in migrations:
-        result = migrate_func(conn, parquet_files, min_h_index, force_repopulate, chunk_size)
+        result = migrate_func(
+            conn, parquet_files, min_h_index, force_repopulate, chunk_size
+        )
         results.append(result)
 
         # Stop if core authors migration fails
@@ -612,8 +620,8 @@ Examples:
     parser.add_argument(
         "--memory-limit",
         type=str,
-        default="8GB",
-        help="DuckDB memory limit (default: 8GB)",
+        default="12GB",
+        help="DuckDB memory limit (default: 12GB)",
     )
 
     args = parser.parse_args()
@@ -649,18 +657,18 @@ Examples:
     try:
         conn = duckdb.connect(str(db_path))
         print("✅ Connected to database")
-        
+
         # Configure DuckDB for memory efficiency
         temp_dir = tempfile.mkdtemp(prefix="duckdb_temp_")
         print(f"🗂️  Using temporary directory: {temp_dir}")
-        
+
         conn.execute(f"SET memory_limit='{args.memory_limit}';")
         conn.execute(f"SET temp_directory='{temp_dir}';")
         conn.execute("SET preserve_insertion_order=false;")
-        conn.execute("SET max_temp_directory_size='4GB';")
-        
+        conn.execute("SET max_temp_directory_size='10GB';")
+
         print("⚙️  Configured DuckDB memory settings")
-        
+
     except Exception as e:
         print(f"❌ Failed to connect to database: {e}")
         sys.exit(1)

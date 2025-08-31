@@ -343,7 +343,7 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
     """Test both FTS and semantic search"""
     print("🧪 Testing search functionality...")
 
-    test_query = "monkey engineering"
+    test_query = "energy software engineering"
 
     try:
         # Test FTS

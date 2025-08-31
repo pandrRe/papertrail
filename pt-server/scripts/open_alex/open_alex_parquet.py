@@ -38,13 +38,13 @@ ENTITY_SCHEMAS = {
 
 # Entity batch size mapping - maps entity names to their optimal batch sizes
 ENTITY_BATCH_SIZES = {
-    "works": 200_000,  # Works are large and complex, use smaller batches
+    "works": 500_000,  # Works are large and complex, use smaller batches
     # All other entities default to 1M records per batch
 }
 
 
 def process_entity_to_parquet(
-    entity_name: str, filter_fn=None, batch_size: int = None
+    entity_name: str, filter_fn=None, batch_size: int = None, start_date: str = None
 ) -> None:
     """
     Processes a specific entity (authors, topics, etc.) converting
@@ -56,10 +56,12 @@ def process_entity_to_parquet(
         filter_fn: Optional function to filter records. Takes a JSON record and returns True/False.
         batch_size: Number of records per batch before converting to parquet.
                    If None, uses entity-specific batch size or default of 1,000,000
+        start_date: Starting date in format "2023-05-17". If provided, only process folders
+                   from this date onwards.
     """
     # Determine batch size for this entity
     if batch_size is None:
-        batch_size = ENTITY_BATCH_SIZES.get(entity_name, 1_000_000)
+        batch_size = ENTITY_BATCH_SIZES.get(entity_name, 200_000)
 
     source_entity_path = openalex_source_path / entity_name
     dest_entity_path = parquet_destination_path / entity_name
@@ -83,8 +85,38 @@ def process_entity_to_parquet(
         if d.is_dir() and d.name.startswith("updated_date=")
     ]
 
+    # Filter date folders by start_date if provided
+    if start_date:
+        print(f"    📅 Filtering folders from start_date: {start_date}")
+        filtered_folders = []
+        for folder in date_folders:
+            # Extract date from folder name like "updated_date=2023-05-17"
+            try:
+                folder_date_str = folder.name[13:]  # Remove "updated_date=" prefix
+                if (
+                    folder_date_str >= start_date
+                ):  # String comparison works for YYYY-MM-DD format
+                    filtered_folders.append(folder)
+                else:
+                    print(f"    ⏭️  Skipping {folder.name} (before start_date)")
+            except Exception as e:
+                print(f"    ⚠️  Error parsing date from {folder.name}: {e}")
+                continue
+        date_folders = filtered_folders
+        print(
+            f"    📊 Processing {len(date_folders)} folders from {start_date} onwards"
+        )
+
+    # Get highest existing part number and start from next part
+    highest_part = get_highest_part_number(entity_name)
+    batch_counter = highest_part + 1
+
+    if highest_part > 0:
+        print(
+            f"    🔄 Resuming from part {batch_counter:04d} (found existing parts up to {highest_part:04d})"
+        )
+
     # Initialize batch processing variables
-    batch_counter = 1
     current_batch_record_count = 0
     total_filtered_count = 0
     total_processed_count = 0
@@ -160,7 +192,7 @@ def process_entity_to_parquet(
             sink_start_time = time.time()
             lazy_df.sink_parquet(
                 str(temp_parquet_file),
-                compression="snappy",
+                compression="lz4",
                 row_group_size=5_000,
             )
 
@@ -301,7 +333,7 @@ def process_entity_to_parquet(
 
 
 def dump_jsonl_batches(
-    entity_name: str, filter_fn=None, batch_size: int = None
+    entity_name: str, filter_fn=None, batch_size: int = None, start_date: str = None
 ) -> None:
     """
     Processes a specific entity (authors, topics, etc.) dumping
@@ -313,6 +345,8 @@ def dump_jsonl_batches(
         filter_fn: Optional function to filter records. Takes a JSON record and returns True/False.
         batch_size: Number of records per batch before creating new batch.
                    If None, uses entity-specific batch size or default of 1,000,000
+        start_date: Starting date in format "2023-05-17". If provided, only process folders
+                   from this date onwards.
     """
     # Determine batch size for this entity
     if batch_size is None:
@@ -340,8 +374,38 @@ def dump_jsonl_batches(
         if d.is_dir() and d.name.startswith("updated_date=")
     ]
 
+    # Filter date folders by start_date if provided
+    if start_date:
+        print(f"    📅 Filtering folders from start_date: {start_date}")
+        filtered_folders = []
+        for folder in date_folders:
+            # Extract date from folder name like "updated_date=2023-05-17"
+            try:
+                folder_date_str = folder.name[13:]  # Remove "updated_date=" prefix
+                if (
+                    folder_date_str >= start_date
+                ):  # String comparison works for YYYY-MM-DD format
+                    filtered_folders.append(folder)
+                else:
+                    print(f"    ⏭️  Skipping {folder.name} (before start_date)")
+            except Exception as e:
+                print(f"    ⚠️  Error parsing date from {folder.name}: {e}")
+                continue
+        date_folders = filtered_folders
+        print(
+            f"    📊 Processing {len(date_folders)} folders from {start_date} onwards"
+        )
+
+    # Get highest existing batch number and start from next batch
+    highest_part = get_highest_part_number(entity_name)
+    batch_counter = highest_part + 1
+
+    if highest_part > 0:
+        print(
+            f"    🔄 Resuming from batch {batch_counter:04d} (found existing batches up to {highest_part:04d})"
+        )
+
     # Initialize batch processing variables
-    batch_counter = 1
     current_batch_record_count = 0
     total_filtered_count = 0
     total_processed_count = 0
@@ -533,6 +597,7 @@ def convert_all_entities(
     include_only: list[str] = None,
     filter_fn=None,
     dump_batches=False,
+    start_date: str = None,
 ) -> None:
     """
     Finds all entities in the source directory and processes each one.
@@ -542,6 +607,8 @@ def convert_all_entities(
         include_only: If provided, only process entities in this list
         filter_fn: Optional function to filter records. Takes a JSON record and returns True/False.
         dump_batches: If True, use dump_jsonl_batches instead of process_entity_to_parquet
+        start_date: Starting date in format "2023-05-17". If provided, only process folders
+                   from this date onwards.
     """
     if exclude is None:
         exclude = []
@@ -580,14 +647,19 @@ def convert_all_entities(
         if exclude:
             print(f"🚫 Excluded: {', '.join(exclude)}")
 
+    if start_date:
+        print(f"📅 Starting from date: {start_date}")
+
     for entity in sorted(entities):
         try:
             if dump_batches:
                 print(f"🔄 Processing {entity} with JSONL batch dumping")
-                dump_jsonl_batches(entity, filter_fn=filter_fn)
+                dump_jsonl_batches(entity, filter_fn=filter_fn, start_date=start_date)
             else:
                 print(f"🔄 Processing {entity} with standard processing")
-                process_entity_to_parquet(entity, filter_fn=filter_fn)
+                process_entity_to_parquet(
+                    entity, filter_fn=filter_fn, start_date=start_date
+                )
         except Exception as e:
             print(f"❌ Error processing entity {entity}: {e}")
             continue
@@ -731,31 +803,39 @@ def filter_works(record):
     And only in the fields of Engineering and Computer Science.
     """
 
-    if "type" not in record or record["type"] not in ["article", "book-chapter"]:
-        return False
+    # if "type" not in record or record["type"] not in ["article", "book-chapter"]:
+    #     return False
 
-    if "language" not in record or record["language"] not in ["en", "pt"]:
-        return False
+    # if "language" not in record or record["language"] not in ["en", "pt"]:
+    #     return False
 
+    # if (
+    #     "citation_normalized_percentile" not in record
+    #     or record["citation_normalized_percentile"] is None
+    #     or record["citation_normalized_percentile"]["value"] < 0.50
+    # ):
+    #     return False
+    if "is_paratext" not in record or record["is_paratext"] is True:
+        return False
     if (
-        "citation_normalized_percentile" not in record
-        or record["citation_normalized_percentile"] is None
-        or record["citation_normalized_percentile"]["value"] < 0.90
+        "authorships" not in record
+        or record["authorships"] is None
+        or len(record["authorships"]) == 0
     ):
         return False
 
-    if (
-        "primary_topic" not in record
-        or record["primary_topic"] is None
-        or record["primary_topic"]["field"]["id"]
-        not in [
-            22,  # Engineering
-            "https://openalex.org/fields/22",  # Engineering
-            17,  # Computer Science
-            "https://openalex.org/fields/17",  # Computer Science
-        ]
-    ):
-        return False
+    # if (
+    #     "primary_topic" not in record
+    #     or record["primary_topic"] is None
+    #     or record["primary_topic"]["field"]["id"]
+    #     not in [
+    #         22,  # Engineering
+    #         "https://openalex.org/fields/22",  # Engineering
+    #         17,  # Computer Science
+    #         "https://openalex.org/fields/17",  # Computer Science
+    #     ]
+    # ):
+    #     return False
 
     return True
 
@@ -968,8 +1048,115 @@ def monitor_sink_progress(temp_parquet_file: Path, interval: int = 30) -> None:
     return monitor_thread
 
 
+def get_highest_part_number(entity_name: str) -> int:
+    """
+    Finds the highest part number from existing parquet files in the entity directory.
+
+    Args:
+        entity_name: Name of the entity (works, authors, etc.)
+
+    Returns:
+        int: The highest part number found, or 0 if no part files exist
+    """
+    dest_entity_path = parquet_destination_path / entity_name
+
+    if not dest_entity_path.exists():
+        print(f"📂 Entity directory not found: {dest_entity_path}")
+        return 0
+
+    # Find all part_*.parquet files
+    part_files = list(dest_entity_path.glob("part_*.parquet"))
+
+    if not part_files:
+        print(f"📂 No existing part files found for {entity_name}")
+        return 0
+
+    highest_part = 0
+    for part_file in part_files:
+        # Extract part number from filename like "part_0125.parquet"
+        try:
+            part_name = part_file.stem  # Remove .parquet extension
+            if part_name.startswith("part_"):
+                part_number = int(part_name[5:])  # Remove "part_" prefix
+                highest_part = max(highest_part, part_number)
+        except ValueError:
+            # Skip files that don't have valid part numbers
+            continue
+
+    print(f"📊 Highest existing part number for {entity_name}: {highest_part}")
+    return highest_part
+
+
+def get_highest_updated_date_from_latest_part(entity_name: str) -> tuple[str, int]:
+    """
+    Finds the highest part number for an entity and returns the highest updated_date from that part.
+
+    Args:
+        entity_name: Name of the entity (works, authors, etc.)
+
+    Returns:
+        tuple: (highest_updated_date, part_number) or (None, 0) if no data found
+    """
+    # First get the highest part number for this entity
+    highest_part = get_highest_part_number(entity_name)
+
+    if highest_part == 0:
+        print(f"❌ No part files found for entity: {entity_name}")
+        return None, 0
+
+    # Construct the path to the highest part file
+    entity_parquet_path = (
+        parquet_destination_path / entity_name / f"part_{highest_part:04d}.parquet"
+    )
+
+    if not entity_parquet_path.exists():
+        print(f"❌ File not found: {entity_parquet_path}")
+        return None, highest_part
+
+    print(f"📖 Reading highest part file: {entity_parquet_path}")
+
+    try:
+        # Read the parquet file and get the max updated_date
+        df = pl.read_parquet(str(entity_parquet_path))
+
+        if "updated_date" not in df.columns:
+            print("❌ Column 'updated_date' not found in the parquet file")
+            available_columns = df.columns
+            print(f"Available columns: {', '.join(available_columns)}")
+            return None, highest_part
+
+        # Get the maximum updated_date
+        max_date = df.select(pl.col("updated_date").max()).item()
+
+        print(f"📅 Highest updated_date in {entity_parquet_path.name}: {max_date}")
+        print(f"📊 Part number: {highest_part}")
+        return max_date, highest_part
+
+    except Exception as e:
+        print(f"❌ Error reading parquet file: {e}")
+        return None, highest_part
+
+
 if __name__ == "__main__":
-    convert_all_entities(include_only=["authors"])
+    # Test the new functionality
+    print("🧪 Testing get_highest_part_number function:")
+    highest_part = get_highest_part_number("works")
+    print(f"Highest part number for works: {highest_part}")
+
+    print("\n🧪 Testing get_highest_updated_date_from_latest_part function:")
+    max_date, part_num = get_highest_updated_date_from_latest_part("works")
+    print(f"Max date from works: {max_date} (part {part_num})")
+
+    # Example usage with start_date:
+    # convert_all_entities(include_only=["works"], start_date="2023-05-17")
+    convert_all_entities(
+        include_only=["works"],
+        filter_fn=filter_works,
+        start_date="2025-06-17",
+    )
+
+    # Original functionality still works:
+    # convert_all_entities(include_only=["works"])
     # convert_all_entities(
     #     include_only=["works"], filter_fn=filter_works, dump_batches=True
     # )

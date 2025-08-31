@@ -268,7 +268,7 @@ work_schema = {
     "referenced_works_count": pl.Int32,
     "related_works": pl.List(pl.Utf8),
     # Abstract inverted index - armazena como JSON string
-    "abstract_inverted_index": pl.Utf8,  # Dinâmico - palavras como chaves (JSON string)
+    # "abstract_inverted_index": pl.Utf8,  # Dinâmico - palavras como chaves (JSON string)
     # Counts by year
     "counts_by_year": pl.List(
         pl.Struct({"year": pl.Int32, "cited_by_count": pl.Int32})

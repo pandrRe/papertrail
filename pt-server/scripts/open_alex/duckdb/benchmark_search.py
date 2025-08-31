@@ -51,10 +51,10 @@ def setup_embedding_function(conn: duckdb.DuckDBPyConnection) -> SentenceTransfo
 
     model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    def get_text_embedding_list(text_list: List[str]) -> List[List[float]]:
+    def get_text_embedding_list(text_list: List[str]):
         """Generate embeddings for a list of texts"""
         embeddings = model.encode(text_list, normalize_embeddings=True)
-        return embeddings.tolist()
+        return embeddings
 
     conn.create_function(
         "get_text_embedding_list",
@@ -88,7 +88,7 @@ def hybrid_search_topics(
                 id,
                 display_name,
                 fts_main_topics.match_bm25(id, '{query}') as bm25_score
-            FROM topics 
+            FROM topics
         ),
         semantic AS (
             SELECT 

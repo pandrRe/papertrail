@@ -6,12 +6,8 @@ from sqlalchemy import DateTime, UniqueConstraint, select, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.dialects.sqlite import insert as upsert
-from dotenv import load_dotenv
 import os
 
-
-if __name__ == "__main__":
-    load_dotenv()
 
 DB_PATH = os.environ.get("DB_PATH")
 
@@ -40,6 +36,7 @@ class CacheScope(enum.Enum):
     SCHOLARLY_SEARCH_KEYWORDS = "scholarly-search-keywords"
     SCHOLARLY_SEARCH_PUBLICATIONS = "scholarly-search-publications"
     ANTHROPIC_PUBLICATION_SUMMARY = "anthropic-publication-summary"
+    OPENALEX_AUTHOR_WORKS = "openalex-author-works"
 
 
 class Cache(Base):
