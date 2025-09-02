@@ -990,6 +990,7 @@ CREATE INDEX IF NOT EXISTS idx_works_display_name ON works(display_name);
 CREATE INDEX IF NOT EXISTS idx_works_type ON works(type);
 CREATE INDEX IF NOT EXISTS idx_works_language ON works(language);
 CREATE INDEX IF NOT EXISTS idx_works_doi ON works(doi);
+CREATE INDEX IF NOT EXISTS idx_works_primary_topic ON works(primary_topic_id)
 
 CREATE INDEX IF NOT EXISTS idx_api_queries_query_text ON api_queries(query_text);
 CREATE INDEX IF NOT EXISTS idx_api_queries_created_at ON api_queries(created_at);

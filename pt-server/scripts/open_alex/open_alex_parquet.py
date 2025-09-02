@@ -809,12 +809,12 @@ def filter_works(record):
     # if "language" not in record or record["language"] not in ["en", "pt"]:
     #     return False
 
-    # if (
-    #     "citation_normalized_percentile" not in record
-    #     or record["citation_normalized_percentile"] is None
-    #     or record["citation_normalized_percentile"]["value"] < 0.50
-    # ):
-    #     return False
+    if (
+        "citation_normalized_percentile" not in record
+        or record["citation_normalized_percentile"] is None
+        or record["citation_normalized_percentile"]["value"] < 0.50
+    ):
+        return False
     if "is_paratext" not in record or record["is_paratext"] is True:
         return False
     if (
@@ -824,18 +824,18 @@ def filter_works(record):
     ):
         return False
 
-    # if (
-    #     "primary_topic" not in record
-    #     or record["primary_topic"] is None
-    #     or record["primary_topic"]["field"]["id"]
-    #     not in [
-    #         22,  # Engineering
-    #         "https://openalex.org/fields/22",  # Engineering
-    #         17,  # Computer Science
-    #         "https://openalex.org/fields/17",  # Computer Science
-    #     ]
-    # ):
-    #     return False
+    if (
+        "primary_topic" not in record
+        or record["primary_topic"] is None
+        or record["primary_topic"]["field"]["id"]
+        not in [
+            22,  # Engineering
+            "https://openalex.org/fields/22",  # Engineering
+            17,  # Computer Science
+            "https://openalex.org/fields/17",  # Computer Science
+        ]
+    ):
+        return False
 
     return True
 

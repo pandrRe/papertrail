@@ -13,16 +13,54 @@ Usage:
 
 import argparse
 import sys
+import os
 from pathlib import Path
 import duckdb
 import time
-from sentence_transformers import SentenceTransformer
+from google import genai
+from google.genai import types
+import numpy as np
 from typing import List
 
 
 def get_script_dir() -> Path:
     """Get the directory where this script is located"""
     return Path(__file__).parent.absolute()
+
+
+def initialize_gemini_client() -> genai.Client:
+    """Initialize Gemini client with API key from environment"""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable is required. "
+            "Please set it with your Google AI API key."
+        )
+
+    client = genai.Client(api_key=api_key)
+    return client
+
+
+def generate_gemini_embeddings(
+    client: genai.Client, texts: List[str]
+) -> List[List[float]]:
+    """Generate normalized embeddings using Gemini API"""
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=texts,
+        config=types.EmbedContentConfig(
+            task_type="SEMANTIC_SIMILARITY", output_dimensionality=768
+        ),
+    )
+
+    # Normalize embeddings to unit vectors
+    normalized_embeddings = []
+    for embedding_obj in result.embeddings:
+        embedding_values_np = np.array(embedding_obj.values)
+        normed_embedding = embedding_values_np / np.linalg.norm(embedding_values_np)
+        normalized_embeddings.append(normed_embedding.tolist())
+
+    return normalized_embeddings
 
 
 def initialize_extensions(conn: duckdb.DuckDBPyConnection) -> None:
@@ -84,12 +122,23 @@ def check_topics_table(conn: duckdb.DuckDBPyConnection) -> dict:
         raise
 
 
-def add_embedding_column(conn: duckdb.DuckDBPyConnection) -> None:
+def add_embedding_column(
+    conn: duckdb.DuckDBPyConnection, force_rebuild: bool = False
+) -> None:
     """Add embedding column to topics table if it doesn't exist"""
     print("🏗️  Adding embedding column...")
 
+    # Drop existing embedding column if forcing rebuild
+    if force_rebuild:
+        try:
+            conn.execute("ALTER TABLE topics DROP COLUMN embedding")
+            print("  🗑️  Dropped existing embedding column")
+        except Exception as e:
+            if "does not exist" not in str(e).lower():
+                print(f"  ⚠️  Warning dropping embedding column: {e}")
+
     try:
-        conn.execute("ALTER TABLE topics ADD COLUMN embedding FLOAT[384]")
+        conn.execute("ALTER TABLE topics ADD COLUMN embedding FLOAT[768]")
         print("  ✅ Embedding column added")
     except Exception as e:
         if "already exists" in str(e).lower():
@@ -214,16 +263,16 @@ def format_topic_text(topic_data: dict) -> str:
 
 def generate_embeddings(
     conn: duckdb.DuckDBPyConnection,
-    batch_size: int = 1000,
+    batch_size: int = 100,
     force_regenerate: bool = False,
 ) -> None:
     """Generate embeddings for all topics"""
     print("🧠 Generating topic embeddings...")
 
-    # Initialize sentence transformer model
-    print("  📥 Loading SentenceTransformer model...")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    print("  ✅ Model loaded")
+    # Initialize Gemini client
+    print("  📥 Initializing Gemini client...")
+    client = initialize_gemini_client()
+    print("  ✅ Gemini client initialized")
 
     # Check how many topics need embeddings
     if not force_regenerate:
@@ -238,16 +287,6 @@ def generate_embeddings(
             print(f"  📊 {null_embeddings:,} topics need embeddings")
     else:
         print("  🔄 Regenerating all embeddings...")
-
-    # Register embedding function
-    def get_text_embedding_list(text_list: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts"""
-        embeddings = model.encode(text_list, normalize_embeddings=True)
-        return embeddings.tolist()
-
-    conn.create_function(
-        "get_text_embedding_list", get_text_embedding_list, return_type="FLOAT[384][]"
-    )
 
     # Get total count for progress tracking
     total_count = conn.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
@@ -303,8 +342,8 @@ def generate_embeddings(
 
         # Generate embeddings and update database
         try:
-            # Generate embeddings first
-            embeddings = get_text_embedding_list(topic_texts)
+            # Generate embeddings using Gemini
+            embeddings = generate_gemini_embeddings(client, topic_texts)
 
             # Update each topic individually to avoid SQL injection issues
             for topic_id, embedding in zip(topic_ids, embeddings):
@@ -343,7 +382,7 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
     """Test both FTS and semantic search"""
     print("🧪 Testing search functionality...")
 
-    test_query = "energy software engineering"
+    test_query = "automated driving"
 
     try:
         # Test FTS
@@ -366,33 +405,25 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
         # Test semantic search
         print(f"  🧠 Testing semantic search with query: '{test_query}'")
 
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Initialize Gemini client
+        client = initialize_gemini_client()
 
-        # Register embedding function
-        def get_text_embedding_list(text_list: List[str]) -> List[List[float]]:
-            """Generate embeddings for a list of texts"""
-            embeddings = model.encode(text_list, normalize_embeddings=True)
-            return embeddings.tolist()
+        # Generate embedding for the test query
+        query_embedding = generate_gemini_embeddings(client, [test_query])[0]
 
-        conn.create_function(
-            "get_text_embedding_list",
-            get_text_embedding_list,
-            return_type="FLOAT[384][]",
-        )
-
-        semantic_results = conn.execute(f"""
+        semantic_results = conn.execute(
+            """
             SELECT 
                 id,
                 display_name,
-                array_cosine_similarity(
-                    embedding,
-                    get_text_embedding_list(['{test_query}'])[1]
-                ) as similarity_score
+                array_cosine_similarity(embedding, ?::FLOAT[768]) as similarity_score
             FROM topics 
             WHERE embedding IS NOT NULL
             ORDER BY similarity_score DESC
             LIMIT 10
-        """).fetchall()
+        """,
+            [query_embedding],
+        ).fetchall()
 
         print(f"    📊 Semantic search found {len(semantic_results)} results")
         for result in semantic_results[:10]:
@@ -401,7 +432,8 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
         # Test hybrid search
         print(f"  🔀 Testing hybrid search with query: '{test_query}'")
 
-        hybrid_results = conn.execute(f"""
+        hybrid_results = conn.execute(
+            f"""
             WITH fts AS (
                 SELECT 
                     id,
@@ -413,10 +445,7 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
                 SELECT 
                     id,
                     display_name,
-                    array_cosine_similarity(
-                        embedding,
-                        get_text_embedding_list(['{test_query}'])[1]
-                    ) as cosine_score
+                    array_cosine_similarity(embedding, ?::FLOAT[768]) as cosine_score
                 FROM topics 
                 WHERE embedding IS NOT NULL
             ),
@@ -445,13 +474,15 @@ def test_search_functionality(conn: duckdb.DuckDBPyConnection) -> None:
                 raw_cosine_score,
                 norm_bm25_score,
                 norm_cosine_score,
-                -- Convex combination: 0.2 * BM25 + 0.8 * cosine similarity
-                (0.2 * norm_bm25_score + 0.8 * norm_cosine_score) AS hybrid_score
+                -- Convex combination: 0.1 * BM25 + 0.9 * cosine similarity
+                (0.1 * norm_bm25_score + 0.9 * norm_cosine_score) AS hybrid_score
             FROM normalized_scores
             WHERE (raw_bm25_score > 0 OR raw_cosine_score > 0)
             ORDER BY hybrid_score DESC
             LIMIT 10
-        """).fetchall()
+        """,
+            [query_embedding],
+        ).fetchall()
 
         print(f"    📊 Hybrid search found {len(hybrid_results)} results")
         for result in hybrid_results[:10]:
@@ -493,8 +524,8 @@ Examples:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=1000,
-        help="Batch size for embedding generation (default: 1000)",
+        default=100,
+        help="Batch size for embedding generation (default: 100)",
     )
 
     parser.add_argument(
@@ -548,8 +579,8 @@ Examples:
             test_search_functionality(conn)
         else:
             # Add embedding column if needed
-            if not table_info["has_embedding"]:
-                add_embedding_column(conn)
+            if not table_info["has_embedding"] or args.force:
+                add_embedding_column(conn, force_rebuild=args.force)
 
             # Create FTS index
             create_fts_index(conn, force_rebuild=args.force)
