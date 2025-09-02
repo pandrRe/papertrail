@@ -6,8 +6,6 @@ import { rankAuthors } from "./db";
 import { generateAuthorSummary } from "./ai";
 import { AuthorRankingResult } from "./types";
 
-require("@duckdb/node-bindings-darwin-x64/duckdb.node");
-
 async function getDuckDBInstance() {
   const path = process.env.DB_PATH;
   const instance = await DuckDBInstance.create(path, {
