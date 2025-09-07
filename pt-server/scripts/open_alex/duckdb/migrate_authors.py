@@ -113,7 +113,7 @@ def migrate_authors_core(
                 insert_query = f"""
                 INSERT OR IGNORE INTO authors (
                     id, orcid, display_name, display_name_alternatives,
-                    works_count, cited_by_count, summary_stats, ids
+                    works_count, cited_by_count, summary_stats, ids, latest_institutions
                 )
                 SELECT 
                     id,
@@ -123,7 +123,12 @@ def migrate_authors_core(
                     works_count,
                     cited_by_count,
                     summary_stats,
-                    ids
+                    ids,
+                    list_transform(last_known_institutions, inst -> struct_pack(
+                        id := inst.id,
+                        display_name := inst.display_name,
+                        country_code := inst.country_code
+                    )) as latest_institutions
                 FROM (
                     SELECT * FROM read_parquet('{parquet_file}')
                     WHERE summary_stats.h_index >= {min_h_index}
@@ -243,7 +248,7 @@ def migrate_author_topics(
 
                 # Insert chunk with IGNORE for duplicates
                 insert_query = f"""
-                INSERT OR IGNORE INTO author_topics (author_id, topic_id, value)
+                INSERT INTO author_topics (author_id, topic_id, value)
                 SELECT 
                     id as author_id,
                     unnest(topic_share).id as topic_id,
@@ -473,7 +478,7 @@ def migrate_all_author_data(
     migrations = [
         ("authors", migrate_authors_core),
         ("author_topics", migrate_author_topics),
-        ("author_affiliations", migrate_author_affiliations),
+        # ("author_affiliations", migrate_author_affiliations),
     ]
 
     for table_name, migrate_func in migrations:

@@ -1,10 +1,10 @@
 -- DuckDB table definitions for OpenAlex entities
 
 -- Works table
-DROP TABLE works;
+-- DROP TABLE works;
 CREATE TABLE IF NOT EXISTS works (
     -- Basic identifiers
-    id VARCHAR PRIMARY KEY,
+    id VARCHAR,
     doi VARCHAR,
     title VARCHAR,
     display_name VARCHAR,
@@ -144,30 +144,21 @@ CREATE TABLE IF NOT EXISTS works (
     -- locations_count INTEGER,
     
     -- Authorships (list of structs) - OPTIONAL
-    -- authorships STRUCT(
-    --     author_position VARCHAR, -- first, middle, last
-    --     is_corresponding BOOLEAN,
-    --     raw_author_name VARCHAR,
-    --     raw_affiliation_strings VARCHAR[],
-    --     author STRUCT(
-    --         id VARCHAR,
-    --         display_name VARCHAR,
-    --         orcid VARCHAR
-    --     ),
-    --     institutions STRUCT(
-    --         id VARCHAR,
-    --         display_name VARCHAR,
-    --         ror VARCHAR,
-    --         country_code VARCHAR,
-    --         type VARCHAR,
-    --         lineage VARCHAR[]
-    --     )[],
-    --     countries VARCHAR[],
-    --     affiliations STRUCT(
-    --         raw_affiliation_string VARCHAR,
-    --         institution_ids VARCHAR[]
-    --     )[]
-    -- )[],
+    authorships STRUCT(
+        author_position VARCHAR, -- first, middle, last
+        -- is_corresponding BOOLEAN,
+        -- raw_author_name VARCHAR,
+        -- raw_affiliation_strings VARCHAR[],
+        author STRUCT(
+            id VARCHAR,
+            display_name VARCHAR,
+            orcid VARCHAR
+        ),
+        institutions STRUCT(
+            id VARCHAR,
+            display_name VARCHAR
+        )[]
+    )[],
     
     -- Authorship counters
     -- corresponding_author_ids VARCHAR[],
@@ -292,23 +283,23 @@ CREATE TABLE IF NOT EXISTS works (
 -- API Queries table - tracks search queries used to search OpenAlex works
 -- DROP TABLE works_api_queries;
 -- DROP TABLE api_queries;
-CREATE TABLE IF NOT EXISTS api_queries (
-    query_text VARCHAR PRIMARY KEY,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    max_pages INTEGER,
-    total_results INTEGER
-);
+-- CREATE TABLE IF NOT EXISTS api_queries (
+--     query_text VARCHAR PRIMARY KEY,
+--     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+--     max_pages INTEGER,
+--     total_results INTEGER
+-- );
 
 -- Works API Queries table - N:M relationship between queries and works
-CREATE TABLE IF NOT EXISTS works_api_queries (
-    query_text VARCHAR NOT NULL,
-    work_id VARCHAR NOT NULL,
-    page_number INTEGER NOT NULL,
-    position_in_page INTEGER,
-    relevance_score DOUBLE NOT NULL,    
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (query_text, work_id),
-);
+-- CREATE TABLE IF NOT EXISTS works_api_queries (
+--     query_text VARCHAR NOT NULL,
+--     work_id VARCHAR NOT NULL,
+--     page_number INTEGER NOT NULL,
+--     position_in_page INTEGER,
+--     relevance_score DOUBLE NOT NULL,    
+--     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (query_text, work_id),
+-- );
 -- Authors table
 -- DROP TABLE IF EXISTS author_topics;
 -- DROP TABLE IF EXISTS author_affiliations;
@@ -339,6 +330,12 @@ CREATE TABLE IF NOT EXISTS authors (
         twitter VARCHAR,
         wikipedia VARCHAR
     ),
+
+    latest_institutions STRUCT(
+        id VARCHAR,
+        display_name VARCHAR,
+        country_code VARCHAR
+    )[]
     
     -- Affiliations -- commented out to optimize state, will be in different table
     -- affiliations STRUCT(
@@ -776,83 +773,83 @@ CREATE TABLE IF NOT EXISTS institutions (
 );
 
 -- Concepts table (deprecated but still present in data)
-CREATE TABLE IF NOT EXISTS concepts (
-    -- Basic identifiers
-    id VARCHAR PRIMARY KEY,
-    wikidata VARCHAR,
-    display_name VARCHAR,
-    level BIGINT,
-    description VARCHAR,
+-- CREATE TABLE IF NOT EXISTS concepts (
+--     -- Basic identifiers
+--     id VARCHAR PRIMARY KEY,
+--     wikidata VARCHAR,
+--     display_name VARCHAR,
+--     level BIGINT,
+--     description VARCHAR,
     
-    -- Metrics
-    works_count BIGINT,
-    cited_by_count BIGINT,
+--     -- Metrics
+--     works_count BIGINT,
+--     cited_by_count BIGINT,
     
-    -- Summary statistics (extended)
-    summary_stats STRUCT(
-        "2yr_mean_citedness" DOUBLE,
-        h_index BIGINT,
-        i10_index BIGINT,
-        oa_percent DOUBLE,
-        works_count BIGINT,
-        cited_by_count BIGINT,
-        "2yr_works_count" BIGINT,
-        "2yr_cited_by_count" BIGINT,
-        "2yr_i10_index" BIGINT,
-        "2yr_h_index" BIGINT
-    ),
+--     -- Summary statistics (extended)
+--     summary_stats STRUCT(
+--         "2yr_mean_citedness" DOUBLE,
+--         h_index BIGINT,
+--         i10_index BIGINT,
+--         oa_percent DOUBLE,
+--         works_count BIGINT,
+--         cited_by_count BIGINT,
+--         "2yr_works_count" BIGINT,
+--         "2yr_cited_by_count" BIGINT,
+--         "2yr_i10_index" BIGINT,
+--         "2yr_h_index" BIGINT
+--     ),
     
-    -- External IDs
-    ids STRUCT(
-        openalex VARCHAR,
-        wikidata VARCHAR,
-        wikipedia VARCHAR,
-        umls_aui VARCHAR[],
-        umls_cui VARCHAR[],
-        mag BIGINT
-    ),
+--     -- External IDs
+--     ids STRUCT(
+--         openalex VARCHAR,
+--         wikidata VARCHAR,
+--         wikipedia VARCHAR,
+--         umls_aui VARCHAR[],
+--         umls_cui VARCHAR[],
+--         mag BIGINT
+--     ),
     
-    -- Images
-    image_url VARCHAR,
-    image_thumbnail_url VARCHAR,
+--     -- Images
+--     image_url VARCHAR,
+--     image_thumbnail_url VARCHAR,
     
-    -- International names and descriptions (simplified as JSON strings due to complexity)
-    international STRUCT(
-        display_name VARCHAR, -- JSON string with language codes
-        description VARCHAR   -- JSON string with language codes
-    ),
+--     -- International names and descriptions (simplified as JSON strings due to complexity)
+--     international STRUCT(
+--         display_name VARCHAR, -- JSON string with language codes
+--         description VARCHAR   -- JSON string with language codes
+--     ),
     
-    -- Relationships
-    ancestors STRUCT(
-        id VARCHAR,
-        wikidata VARCHAR,
-        display_name VARCHAR,
-        level BIGINT
-    )[],
-    related_concepts STRUCT(
-        id VARCHAR,
-        wikidata VARCHAR,
-        display_name VARCHAR,
-        level BIGINT,
-        score DOUBLE
-    )[],
+--     -- Relationships
+--     ancestors STRUCT(
+--         id VARCHAR,
+--         wikidata VARCHAR,
+--         display_name VARCHAR,
+--         level BIGINT
+--     )[],
+--     related_concepts STRUCT(
+--         id VARCHAR,
+--         wikidata VARCHAR,
+--         display_name VARCHAR,
+--         level BIGINT,
+--         score DOUBLE
+--     )[],
     
-    -- Counts by year
-    counts_by_year STRUCT(
-        year BIGINT,
-        works_count BIGINT,
-        oa_works_count BIGINT,
-        cited_by_count BIGINT
-    )[],
+--     -- Counts by year
+--     counts_by_year STRUCT(
+--         year BIGINT,
+--         works_count BIGINT,
+--         oa_works_count BIGINT,
+--         cited_by_count BIGINT
+--     )[],
     
-    -- API URLs
-    works_api_url VARCHAR,
+--     -- API URLs
+--     works_api_url VARCHAR,
     
-    -- Timestamps
-    updated_date VARCHAR,
-    created_date VARCHAR,
-    updated VARCHAR
-);
+--     -- Timestamps
+--     updated_date VARCHAR,
+--     created_date VARCHAR,
+--     updated VARCHAR
+-- );
 
 -- Domains table
 CREATE TABLE IF NOT EXISTS domains (
@@ -984,25 +981,25 @@ CREATE TABLE IF NOT EXISTS topics (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_works_display_name ON works(display_name);
+-- CREATE INDEX IF NOT EXISTS idx_works_display_name ON works(display_name);
 -- CREATE INDEX IF NOT EXISTS idx_works_publication_year ON works(publication_year);
 -- CREATE INDEX IF NOT EXISTS idx_works_cited_by_count ON works(cited_by_count);
-CREATE INDEX IF NOT EXISTS idx_works_type ON works(type);
-CREATE INDEX IF NOT EXISTS idx_works_language ON works(language);
-CREATE INDEX IF NOT EXISTS idx_works_doi ON works(doi);
-CREATE INDEX IF NOT EXISTS idx_works_primary_topic ON works(primary_topic_id)
+-- CREATE INDEX IF NOT EXISTS idx_works_type ON works(type);
+-- CREATE INDEX IF NOT EXISTS idx_works_language ON works(language);
+-- CREATE INDEX IF NOT EXISTS idx_works_doi ON works(doi);
+-- CREATE INDEX IF NOT EXISTS idx_works_primary_topic ON works(primary_topic_id)
 
-CREATE INDEX IF NOT EXISTS idx_api_queries_query_text ON api_queries(query_text);
-CREATE INDEX IF NOT EXISTS idx_api_queries_created_at ON api_queries(created_at);
+-- CREATE INDEX IF NOT EXISTS idx_api_queries_query_text ON api_queries(query_text);
+-- CREATE INDEX IF NOT EXISTS idx_api_queries_created_at ON api_queries(created_at);
 
-CREATE INDEX IF NOT EXISTS idx_works_api_queries_query_text ON works_api_queries(query_text);
-CREATE INDEX IF NOT EXISTS idx_works_api_queries_work_id ON works_api_queries(work_id);
-CREATE INDEX IF NOT EXISTS idx_works_api_queries_page_number ON works_api_queries(page_number);
-CREATE INDEX IF NOT EXISTS idx_works_api_queries_created_at ON works_api_queries(created_at);
+-- CREATE INDEX IF NOT EXISTS idx_works_api_queries_query_text ON works_api_queries(query_text);
+-- CREATE INDEX IF NOT EXISTS idx_works_api_queries_work_id ON works_api_queries(work_id);
+-- CREATE INDEX IF NOT EXISTS idx_works_api_queries_page_number ON works_api_queries(page_number);
+-- CREATE INDEX IF NOT EXISTS idx_works_api_queries_created_at ON works_api_queries(created_at);
 
-CREATE INDEX IF NOT EXISTS idx_authors_display_name ON authors(display_name);
-CREATE INDEX IF NOT EXISTS idx_authors_works_count ON authors(works_count);
-CREATE INDEX IF NOT EXISTS idx_authors_cited_by_count ON authors(cited_by_count);
+-- CREATE INDEX IF NOT EXISTS idx_authors_display_name ON authors(display_name);
+-- CREATE INDEX IF NOT EXISTS idx_authors_works_count ON authors(works_count);
+-- CREATE INDEX IF NOT EXISTS idx_authors_cited_by_count ON authors(cited_by_count);
 
 CREATE INDEX IF NOT EXISTS idx_subfields_display_name ON subfields(display_name);
 CREATE INDEX IF NOT EXISTS idx_subfields_works_count ON subfields(works_count);
@@ -1025,10 +1022,10 @@ CREATE INDEX IF NOT EXISTS idx_topics_display_name ON topics(display_name);
 CREATE INDEX IF NOT EXISTS idx_topics_works_count ON topics(works_count);
 CREATE INDEX IF NOT EXISTS idx_topics_cited_by_count ON topics(cited_by_count);
 
-CREATE INDEX IF NOT EXISTS idx_concepts_display_name ON concepts(display_name);
-CREATE INDEX IF NOT EXISTS idx_concepts_works_count ON concepts(works_count);
-CREATE INDEX IF NOT EXISTS idx_concepts_cited_by_count ON concepts(cited_by_count);
-CREATE INDEX IF NOT EXISTS idx_concepts_level ON concepts(level);
+-- CREATE INDEX IF NOT EXISTS idx_concepts_display_name ON concepts(display_name);
+-- CREATE INDEX IF NOT EXISTS idx_concepts_works_count ON concepts(works_count);
+-- CREATE INDEX IF NOT EXISTS idx_concepts_cited_by_count ON concepts(cited_by_count);
+-- CREATE INDEX IF NOT EXISTS idx_concepts_level ON concepts(level);
 
 CREATE INDEX IF NOT EXISTS idx_domains_display_name ON domains(display_name);
 CREATE INDEX IF NOT EXISTS idx_domains_works_count ON domains(works_count);
@@ -1042,24 +1039,23 @@ CREATE INDEX IF NOT EXISTS idx_fields_cited_by_count ON fields(cited_by_count);
 CREATE TABLE IF NOT EXISTS author_topics (
     author_id VARCHAR NOT NULL,
     topic_id VARCHAR NOT NULL,
-    value DOUBLE NOT NULL, -- from the value field in authors.topic_share
-    PRIMARY KEY (author_id, topic_id)
+    value DOUBLE NOT NULL -- from the value field in authors.topic_share
+    -- PRIMARY KEY (author_id, topic_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_author_topics_author_id ON author_topics(author_id);
-CREATE INDEX IF NOT EXISTS idx_author_topics_topic_id ON author_topics(topic_id);
-CREATE INDEX IF NOT EXISTS idx_author_topics_value ON author_topics(value);
+-- CREATE INDEX IF NOT EXISTS idx_author_topics_author_id ON author_topics(author_id);
+-- CREATE INDEX IF NOT EXISTS idx_author_topics_topic_id ON author_topics(topic_id);
+-- CREATE INDEX IF NOT EXISTS idx_author_topics_value ON author_topics(value);
 
 -- Author-Institution relationship table (denormalized from authors.affiliations)
-CREATE TABLE IF NOT EXISTS author_affiliations (
-    author_id VARCHAR NOT NULL,
-    institution_id VARCHAR NOT NULL,
-    years INTEGER[], -- array of years the author was affiliated with this institution
-    PRIMARY KEY (author_id, institution_id)
-);
+-- Now manually inserted
+-- CREATE TABLE IF NOT EXISTS author_affiliations (
+--     author_id VARCHAR NOT NULL,
+--     institution_id VARCHAR NOT NULL,
+-- );
 
-CREATE INDEX IF NOT EXISTS idx_author_affiliations_author_id ON author_affiliations(author_id);
-CREATE INDEX IF NOT EXISTS idx_author_affiliations_institution_id ON author_affiliations(institution_id);
+-- CREATE INDEX IF NOT EXISTS idx_author_affiliations_author_id ON author_affiliations(author_id);
+-- CREATE INDEX IF NOT EXISTS idx_author_affiliations_institution_id ON author_affiliations(institution_id);
 
 -- Work-Source relationship table (denormalized from works.primary_location.source and works.locations)
 CREATE TABLE IF NOT EXISTS work_sources (
@@ -1070,35 +1066,34 @@ CREATE TABLE IF NOT EXISTS work_sources (
     pdf_url VARCHAR,
     version VARCHAR, -- publishedVersion, acceptedVersion, submittedVersion
     is_accepted BOOLEAN,
-    is_published BOOLEAN,
-    PRIMARY KEY (work_id, source_id, is_primary)
+    is_published BOOLEAN
+    -- PRIMARY KEY (work_id, source_id, is_primary)
 );
 
-CREATE INDEX IF NOT EXISTS idx_work_sources_work_id ON work_sources(work_id);
-CREATE INDEX IF NOT EXISTS idx_work_sources_source_id ON work_sources(source_id);
-CREATE INDEX IF NOT EXISTS idx_work_sources_is_primary ON work_sources(is_primary);
-CREATE INDEX IF NOT EXISTS idx_work_sources_is_oa ON work_sources(is_oa);
+-- CREATE INDEX IF NOT EXISTS idx_work_sources_work_id ON work_sources(work_id);
+-- CREATE INDEX IF NOT EXISTS idx_work_sources_source_id ON work_sources(source_id);
+-- CREATE INDEX IF NOT EXISTS idx_work_sources_is_primary ON work_sources(is_primary);
+-- CREATE INDEX IF NOT EXISTS idx_work_sources_is_oa ON work_sources(is_oa);
 
 -- Authorships relationship table (denormalized from works.authorships)
 CREATE TABLE IF NOT EXISTS authorships (
     work_id VARCHAR NOT NULL,
-    author_id VARCHAR NOT NULL,
-    author_position VARCHAR, -- first, middle, last
-    PRIMARY KEY (work_id, author_id)
+    author_id VARCHAR NOT NULL
+    -- PRIMARY KEY (work_id, author_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_authorships_work_id ON authorships(work_id);
-CREATE INDEX IF NOT EXISTS idx_authorships_author_id ON authorships(author_id);
-CREATE INDEX IF NOT EXISTS idx_authorships_author_position ON authorships(author_position);
+-- CREATE INDEX IF NOT EXISTS idx_authorships_work_id ON authorships(work_id);
+-- CREATE INDEX IF NOT EXISTS idx_authorships_author_id ON authorships(author_id);
+-- CREATE INDEX IF NOT EXISTS idx_authorships_author_position ON authorships(author_position);
 
 -- Work-Institution relationship table (denormalized from works.authorships.institutions)
 CREATE TABLE IF NOT EXISTS work_institutions (
     work_id VARCHAR NOT NULL,
     author_id VARCHAR NOT NULL, -- which author is affiliated with this institution
-    institution_id VARCHAR NOT NULL,
-    PRIMARY KEY (work_id, author_id, institution_id)
+    institution_id VARCHAR NOT NULL
+    -- PRIMARY KEY (work_id, author_id, institution_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_work_institutions_work_id ON work_institutions(work_id);
-CREATE INDEX IF NOT EXISTS idx_work_institutions_author_id ON work_institutions(author_id);
-CREATE INDEX IF NOT EXISTS idx_work_institutions_institution_id ON work_institutions(institution_id);
+-- CREATE INDEX IF NOT EXISTS idx_work_institutions_work_id ON work_institutions(work_id);
+-- CREATE INDEX IF NOT EXISTS idx_work_institutions_author_id ON work_institutions(author_id);
+-- CREATE INDEX IF NOT EXISTS idx_work_institutions_institution_id ON work_institutions(institution_id);

@@ -117,10 +117,10 @@ def migrate_works_core(
 
                 # Insert chunk with IGNORE for duplicates
                 insert_query = f"""
-                INSERT OR IGNORE INTO works (
+                INSERT INTO works (
                     id, doi, title, display_name, publication_date, language, type, oa_url,
                     ids, primary_topic_id, citation_normalized_percentile_value, 
-                    cited_by_count, fwci, created_date, updated_date
+                    cited_by_count, fwci, authorships, created_date, updated_date
                 )
                 SELECT 
                     id,
@@ -136,6 +136,18 @@ def migrate_works_core(
                     citation_normalized_percentile.value as citation_normalized_percentile_value,
                     cited_by_count,
                     fwci,
+                    list_transform(authorships, auth -> struct_pack(
+                        author_position := auth.author_position,
+                        author := struct_pack(
+                            id := auth.author.id,
+                            display_name := auth.author.display_name,
+                            orcid := auth.author.orcid
+                        ),
+                        institutions := list_transform(auth.institutions, inst -> struct_pack(
+                            id := inst.id,
+                            display_name := inst.display_name
+                        ))
+                    )) as authorships,
                     created_date,
                     updated_date
                 FROM (
@@ -264,7 +276,7 @@ def migrate_work_sources(
 
                 # Insert primary location sources
                 primary_query = f"""
-                INSERT OR IGNORE INTO work_sources (
+                INSERT INTO work_sources (
                     work_id, source_id, is_primary, is_oa, pdf_url, 
                     version, is_accepted, is_published
                 )
@@ -290,7 +302,7 @@ def migrate_work_sources(
 
                 # Insert other location sources
                 locations_query = f"""
-                INSERT OR IGNORE INTO work_sources (
+                INSERT INTO work_sources (
                     work_id, source_id, is_primary, is_oa, pdf_url, 
                     version, is_accepted, is_published
                 )
@@ -449,11 +461,10 @@ def migrate_authorships(
                         unnest(fw.authorships) as authorship
                     FROM filtered_works fw
                 )
-                INSERT OR IGNORE INTO authorships (work_id, author_id, author_position)
+                INSERT INTO authorships (work_id, author_id)
                 SELECT 
                     ua.work_id,
                     ua.authorship.author.id as author_id,
-                    ua.authorship.author_position as author_position
                 FROM unnested_authorships ua
                 WHERE ua.authorship.author.id IS NOT NULL
                 """
@@ -680,7 +691,7 @@ def migrate_all_work_data(
     print(f"\n🚀 Starting Work Data Migration")
     print(f"📊 Minimum citation percentile filter: {min_percentile}")
     print(f"🚫 Filtering out paratexts")
-    print(f"👥 Filtering out works without authorships") 
+    print(f"👥 Filtering out works without authorships")
     print("=" * 60)
 
     # Get parquet files for works
@@ -702,7 +713,7 @@ def migrate_all_work_data(
         ("works", migrate_works_core),
         ("work_sources", migrate_work_sources),
         ("authorships", migrate_authorships),
-        ("work_institutions", migrate_work_institutions),
+        # ("work_institutions", migrate_work_institutions),
     ]
 
     for table_name, migrate_func in migrations:
