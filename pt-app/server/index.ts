@@ -10,6 +10,12 @@ import { getCachedValue, putCachedValue } from "./cache";
 
 async function getDuckDBInstance() {
   const path = process.env.DB_PATH;
+  if (!path) {
+    throw new Error(
+      "DB_PATH environment variable is not set. " +
+      "DuckDB features require this to be configured."
+    );
+  }
   const instance = await DuckDBInstance.create(path, {
     access_mode: "READ_ONLY",
   });
@@ -22,7 +28,15 @@ async function getDuckDBConnection() {
   return connection;
 }
 
-const connection = await getDuckDBConnection();
+// Lazy singleton for DuckDB connection
+let connectionPromise: Promise<DuckDBConnection> | null = null;
+
+function getConnection(): Promise<DuckDBConnection> {
+  if (!connectionPromise) {
+    connectionPromise = getDuckDBConnection();
+  }
+  return connectionPromise;
+}
 
 async function getQueryAuthors(
   queryContent: string,
@@ -90,12 +104,12 @@ async function* generateAuthorSummariesInParallel(
 const app = new Elysia()
   .use(cors())
   .get("/", () => "Papertrail API")
-  .decorate("db", connection)
   .get(
     "/query",
     async function* (ctx) {
+      const db = await getConnection();
       const searchQuery = ctx.query.content;
-      const authors = await getQueryAuthors(searchQuery, ctx.db);
+      const authors = await getQueryAuthors(searchQuery, db);
       
       // Process each author's works - sort by cited count desc and take top 5
       const processedAuthors = authors.map(author => ({
@@ -130,7 +144,7 @@ const app = new Elysia()
     }
   )
   .get("/test-duckdb", async () => {
-    // Create DuckDB connection
+    const connection = await getConnection();
     connection.run("from test_all_types()");
 
     return "OK";

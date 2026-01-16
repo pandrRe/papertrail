@@ -2,12 +2,8 @@ import { arrayValue, DuckDBConnection } from "@duckdb/node-api";
 import { generateEmbedding } from "./ai";
 import { AuthorRankingResult } from "./types";
 
-const parquetPath = process.env.DENORM_PARQUET_PATH;
-if (!parquetPath) {
-  throw new Error("DENORM_PARQUET_PATH environment variable is not set");
-}
-
-const authorsQuery = `\
+function getAuthorsQuery(parquetPath: string) {
+  return `\
 WITH 
 -- Step 1: Get top K topics using HNSW index for fast similarity search
 top_topics AS (
@@ -113,13 +109,22 @@ FROM final_ranking
 ORDER BY composite_score DESC
 LIMIT 20;
 `;
+}
 
 export async function rankAuthors(
   conn: DuckDBConnection,
   queryContent: string
 ) {
+  const parquetPath = process.env.DENORM_PARQUET_PATH;
+  if (!parquetPath) {
+    throw new Error(
+      "DENORM_PARQUET_PATH environment variable is not set. " +
+      "DuckDB ranking features require this to be configured."
+    );
+  }
+
   const queryEmbedding = await generateEmbedding(queryContent);
-  const prepared = await conn.prepare(authorsQuery);
+  const prepared = await conn.prepare(getAuthorsQuery(parquetPath));
   prepared.bind({
     query_embedding: arrayValue(queryEmbedding),
   });
