@@ -5,6 +5,8 @@ import { open, RootDatabase } from "lmdb";
 import { rankAuthors } from "./db";
 import { generateAuthorSummary } from "./ai";
 import { AuthorRankingResult } from "./types";
+import { readOrcidRecord } from "./orcid";
+import { getCachedValue, putCachedValue } from "./cache";
 
 async function getDuckDBInstance() {
   const path = process.env.DB_PATH;
@@ -21,40 +23,10 @@ async function getDuckDBConnection() {
 }
 
 const connection = await getDuckDBConnection();
-const lmdb = open({
-  path: process.env.LMDB_PATH || "./.data/lmdb",
-  compression: true,
-});
-
-type CacheEntry<T> = {
-  timestamp: number;
-  content: T;
-};
-const CACHE_TTL = 1000 * 60 * 24; // 24 hours
-
-function getCachedValue<T>(key: string): T | undefined {
-  const entry = lmdb.get(key) as CacheEntry<T> | undefined;
-  if (entry) {
-    const isExpired = Date.now() - entry.timestamp > CACHE_TTL;
-    if (!isExpired) {
-      return entry.content;
-    }
-  }
-  return undefined;
-}
-
-async function putCachedValue<T>(key: string, content: T) {
-  const entry: CacheEntry<T> = {
-    timestamp: Date.now(),
-    content,
-  };
-  await lmdb.put(key, entry);
-}
 
 async function getQueryAuthors(
   queryContent: string,
-  duckDb: DuckDBConnection,
-  lmdb: RootDatabase
+  duckDb: DuckDBConnection
 ) {
   const cachedAuthors = getCachedValue<AuthorRankingResult[]>(queryContent);
   if (cachedAuthors) {
@@ -81,40 +53,74 @@ async function getAuthorSummary(
   return freshSummary;
 }
 
-async function wait(timeout: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, timeout));
+async function* generateAuthorSummariesInParallel(
+  authors: AuthorRankingResult[],
+  searchQuery: string,
+) {
+  // Start all summary generation promises in parallel
+  const summaryPromises = authors.map((author) => ({
+    authorId: author.id,
+    promise: getAuthorSummary(author, searchQuery),
+  }));
+
+  const pendingPromises = [...summaryPromises];
+
+  // Yield results as they complete using Promise.race
+  while (pendingPromises.length > 0) {
+    const { authorId, summary } = await Promise.race(
+      pendingPromises.map(async ({ authorId, promise }) => ({
+        authorId,
+        summary: await promise,
+      }))
+    );
+
+    // Remove the completed promise from pending list
+    const completedIndex = pendingPromises.findIndex(p => p.authorId === authorId);
+    if (completedIndex !== -1) {
+      pendingPromises.splice(completedIndex, 1);
+    }
+
+    yield {
+      authorId,
+      summary,
+    };
+  }
 }
 
 const app = new Elysia()
   .use(cors())
   .get("/", () => "Papertrail API")
   .decorate("db", connection)
-  .decorate("lmdb", lmdb)
   .get(
     "/query",
     async function* (ctx) {
       const searchQuery = ctx.query.content;
-      const authors = await getQueryAuthors(searchQuery, ctx.db, ctx.lmdb);
+      const authors = await getQueryAuthors(searchQuery, ctx.db);
+      
+      // Process each author's works - sort by cited count desc and take top 5
+      const processedAuthors = authors.map(author => ({
+        ...author,
+        works_list: [...author.works_list]
+          .sort((a, b) => b.cited_by_count - a.cited_by_count)
+          .slice(0, 5)
+      }));
+      
       yield sse({
         id: "1",
         event: "authors",
-        data: authors,
+        data: processedAuthors,
       });
 
-      await wait(10);
-
-      for (let i = 0; i < authors.length; i++) {
-        const author = authors[i];
-        const summary = await getAuthorSummary(author, searchQuery);
+      // Generate author summaries in parallel and stream as they complete
+      for await (const { authorId, summary } of generateAuthorSummariesInParallel(processedAuthors, searchQuery)) {
         yield sse({
-          id: `summary-${author.id}`,
+          id: `summary-${authorId}`,
           event: "author_summary",
           data: {
-            authorId: author.id,
+            authorId,
             summary,
           },
         });
-        await wait(5);
       }
     },
     {
@@ -128,7 +134,16 @@ const app = new Elysia()
     connection.run("from test_all_types()");
 
     return "OK";
-  });
+  })
+  .get(
+    "/orcid/:id",
+    async (ctx) => {
+      const id = ctx.params.id;
+      const decodedId = decodeURIComponent(id);
+      const record = await readOrcidRecord(decodedId);
+      return record;
+    },
+  );
 
 app.listen(8888);
 console.log("Server is running on http://localhost:8888");

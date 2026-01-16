@@ -1,12 +1,28 @@
 // Individual work structure within the works_list
+type Authorship = {
+  author: {
+    id: string;
+    display_name: string;
+    orcid: string | null;
+  };
+  author_position: string;
+};
+
 type WorkDetail = {
-  work_id: string;
+  id: string;
   display_name: string;
   publication_date: string; // ISO date string
-  topic: string;
+  doi: string | null;
+  oa_url: string | null;
   fwci: number | null;
   cited_by_count: number;
-  authorships: { display_name: string; author_position: number }[];
+  authorships: Authorship[];
+};
+
+type CleanInstitution = {
+  id: string;
+  display_name: string;
+  country_code: string | null;
 };
 
 type Institution = {
@@ -38,7 +54,6 @@ type Institution = {
 
 // Main query result type with new fields for recency and productivity
 export type AuthorRankingResult = {
-  rank: string;
   id: string;
   display_name: string;
   ids: {
@@ -53,6 +68,6 @@ export type AuthorRankingResult = {
     two_year_mean_citedness: number | null;
     i10_index: number | null;
   };
-  latest_institution: Institution | null;
+  latest_institutions: CleanInstitution[];
   works_list: WorkDetail[];
 };
